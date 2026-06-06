@@ -19,6 +19,7 @@ import DiscoveredQueue from "@/components/DiscoveredQueue";
 import ClipsGallery from "@/components/ClipsGallery";
 import Analytics from "@/components/Analytics";
 import YouTubeConnect from "@/components/YouTubeConnect";
+import ManualUpload from "@/components/ManualUpload";
 import { Button, Card, GlowMetricCard, Badge, StagePill } from "@/components/ui";
 import type { Stage } from "@/lib/types";
 
@@ -324,6 +325,7 @@ export default function Page() {
             <Analytics refreshKey={refreshKey} />
           </div>
           <div className="flex flex-col gap-4">
+            <ManualUpload />
             <DiscoveredQueue refreshKey={refreshKey} />
           </div>
         </section>

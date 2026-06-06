@@ -81,7 +81,18 @@ export async function POST(req: Request) {
     );
   }
 
-  const auth = await authedClientForActive();
+  let auth: Awaited<ReturnType<typeof authedClientForActive>>;
+  try {
+    auth = await authedClientForActive();
+  } catch (e) {
+    if (String((e as Error)?.message) === "reauth_required") {
+      return Response.json(
+        { error: "This account's session expired. Reconnect it (top-right) and retry." },
+        { status: 401 },
+      );
+    }
+    throw e;
+  }
   if (!auth) {
     return Response.json(
       { error: "No YouTube account connected. Connect one first." },
@@ -136,6 +147,16 @@ export async function POST(req: Request) {
     });
   } catch (e) {
     const msg = String((e as Error)?.message || e);
+    if (/youtubeSignupRequired|not.*enabled.*YouTube/i.test(msg)) {
+      return Response.json(
+        {
+          error:
+            "This Google account has no YouTube channel yet. Create one at youtube.com " +
+            "(sign in → Create a channel), then reconnect and try again.",
+        },
+        { status: 409 },
+      );
+    }
     return Response.json({ error: msg.slice(0, 300) }, { status: 502 });
   }
 }

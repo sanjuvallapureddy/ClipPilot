@@ -35,27 +35,50 @@ export async function GET(req: Request) {
     const { tokens } = await oauth.getToken(code);
     oauth.setCredentials(tokens);
 
-    // Identify the channel (display) + email.
-    const yt = google.youtube({ version: "v3", auth: oauth });
-    const ch = await yt.channels.list({ part: ["snippet"], mine: true });
-    const channel = ch.data.items?.[0];
+    // Identify the Google account (always works) and the YouTube channel (only if one
+    // exists on the account). We no longer hard-fail when there's no channel — the user
+    // can still connect; uploads will surface a clear error if a channel is required.
     let email = "";
+    let userId = "";
+    let userName = "";
+    let userPicture = "";
     try {
       const oauth2 = google.oauth2({ version: "v2", auth: oauth });
       const info = await oauth2.userinfo.get();
       email = info.data.email || "";
+      userId = info.data.id || "";
+      userName = info.data.name || "";
+      userPicture = info.data.picture || "";
     } catch {
       /* userinfo optional */
     }
 
-    if (!channel?.id) {
-      return back({ youtube: "error", reason: "no_youtube_channel" });
+    let channelId = "";
+    let channelTitle = "";
+    let thumbnail = "";
+    try {
+      const yt = google.youtube({ version: "v3", auth: oauth });
+      const ch = await yt.channels.list({ part: ["snippet"], mine: true });
+      const channel = ch.data.items?.[0];
+      if (channel?.id) {
+        channelId = channel.id;
+        channelTitle = channel.snippet?.title || "";
+        thumbnail = channel.snippet?.thumbnails?.default?.url || "";
+      }
+    } catch {
+      /* channel lookup optional — fall back to the Google identity below */
+    }
+
+    // Stable identity key: channel id if present, else the Google user id / email.
+    const identity = channelId || userId || email;
+    if (!identity) {
+      return back({ youtube: "error", reason: "no_identity" });
     }
 
     const account: YouTubeAccount = {
-      channel_id: channel.id,
-      channel_title: channel.snippet?.title || "YouTube channel",
-      thumbnail: channel.snippet?.thumbnails?.default?.url || "",
+      channel_id: identity,
+      channel_title: channelTitle || userName || email || "YouTube account",
+      thumbnail: thumbnail || userPicture,
       email,
       refresh_token: tokens.refresh_token || "",
       access_token: tokens.access_token || "",
