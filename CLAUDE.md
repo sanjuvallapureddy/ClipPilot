@@ -18,10 +18,10 @@ without logging it to `coord:log` and here.
 ## Lanes (independent modules; talk ONLY via Redis contract + OpenShorts API)
 - **A — `discovery-orchestrator/`** (Python, FastAPI + scheduler): discovery + the
   autonomous loop + control API (`/run-once`, `/start`, `/stop`, `/status`).
-- **B — `performance/`** (Python): collect metrics → learn `patterns:current` →
-  generate A/B variants. Has `--simulate`.
-- **C — `engine/`** (OpenShorts wrapper, FastAPI): `POST /process {youtube_url, config}`
-  → `{job_id}`; `GET /status/{job_id}`. `ENGINE_MODE=MOCK|REAL`.
+- **B — `performance/`** (Python): collect REAL posted metrics → learn `patterns:current`
+  → generate A/B variants. No simulation.
+- **C — `engine/`** (FastAPI): `POST /process {youtube_url, config}` → `{job_id}`;
+  `GET /status/{job_id}`. Real pipeline: yt-dlp transcript → GPT moment detection.
 - **D — `dashboard/`** (Next.js 14 + CopilotKit + AG-UI): mission control.
 
 ## The Redis contract — the ONLY interface between lanes
@@ -31,9 +31,9 @@ Source of truth: `shared/keys.py` (+ `shared/schemas.py`, mirrored in `shared/ty
 |-----|------|-------------------|
 | `discovery:queue` | Stream (consumer group `orchestrator`) | A → A |
 | `seen:{video_id}` | string + TTL (14d) | A |
-| `jobs:{job_id}` | Hash (stages: queued→submitted→rendering→publishing→done\|failed) | A,C → D |
+| `jobs:{job_id}` | Hash (stages: queued→fetching→transcribing→analyzing→done\|failed) | A,C → D |
 | `jobs:stream` | Stream of status changes | A,C → D |
-| `results:{clip_id}` | Hash (views/likes/shares/watch_time/engagement_score) | C,D → B |
+| `results:{clip_id}` | Hash (quote/hook/start/end/score; render_status/post_status; metrics when posted) | C,D → B |
 | `results:all` | Set of clip_ids | C,D → B |
 | `patterns:current` | JSON (winning topics/hooks/length/caption) | B → A |
 | `patterns:variants:{topic}` | JSON variant configs | B → C,A |
@@ -48,31 +48,29 @@ OpenShorts API (C defines, A calls): `POST /process {youtube_url, config}` → `
   only contract keys.
 - Coordinate ONLY via (1) the Redis contract and (2) `coord:log`.
 - Any contract change → post to `coord:log` AND update this file before merge.
-- Every lane ships stub producers/consumers with fake data → all four run in isolation
-  from minute one (`python -m shared.stubs --all`).
 
-## Build order (commit after each)
+## REAL DATA ONLY — no mocks/stubs/sims
+Discovery = real yt-dlp YouTube search (real view counts, no key). Moment detection =
+real transcript (yt-dlp captions / Whisper) + GPT (needs `OPENAI_API_KEY`). Render
+(OpenShorts) + posting (Upload-Post creds) are unwired → clips carry
+`render_status=pending` / `post_status=not_posted`; metrics stay 0 until real. Never fake.
+
+## Build order (done)
 1. ✅ `shared/` contract + docker-compose + .env.example + CLAUDE.md + README.
-2. ✅ Stub generators for every key (`shared/stubs.py`).
-3. Lane C reachable headlessly: one YouTube URL → clip → sandbox post.
-4. Lane A discovery → `discovery:queue` → orchestrator → engine via `run-once`.
-5. Lane D dashboard tailing live jobs + copilot `runPipeline()`.
-6. Lane B results + `patterns:current`; close the loop into Lane A selection.
-7. End-to-end autonomous run on a schedule + analytics + polish.
+2. ✅ Real discovery (yt-dlp) + orchestrator + control API.
+3. ✅ Real engine (transcript → GPT moments).
+4. ✅ Dashboard tailing live jobs + copilot actions.
+5. ✅ Lane B real metrics + `patterns:current`; loop closes into Lane A.
 
-## Vertical slice (ship first if time short)
-one podcast → one clip → one live (sandbox) post → shown on the dashboard.
-
-## Sponsors (use meaningfully): OpenAI · Redis · CopilotKit · Upload-Post · OpenShorts.
+## Sponsors (use meaningfully): OpenAI · Redis · CopilotKit · (OpenShorts/Upload-Post for render+post).
 
 ## Run locally
 ```bash
-cp .env.example .env            # fill keys (or leave MOCK/simulate on)
-docker compose up redis -d
+cp .env.example .env            # set OPENAI_API_KEY
+docker run -d --name clippilot-redis -p 6379:6379 redis/redis-stack:latest
 pip install -r requirements.txt
-python -m shared.stubs --all    # seed every key
-uvicorn engine.app:app --port 8001            # Lane C (MOCK)
+uvicorn engine.app:app --port 8001                  # Lane C
 uvicorn discovery_orchestrator.app:app --port 8000  # Lane A
-python -m performance.worker --simulate       # Lane B
-cd dashboard && npm i && npm run dev           # Lane D -> localhost:3000
+python -m performance.worker --loop                 # Lane B
+cd dashboard && npm i && npm run dev                 # Lane D -> localhost:3000
 ```

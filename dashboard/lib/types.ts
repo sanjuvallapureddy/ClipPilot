@@ -1,7 +1,7 @@
 // Mirror of shared/types.ts (kept local so the Next build is self-contained).
 // Source of truth: ../../shared/types.ts + ../../shared/schemas.py.
 export type Stage =
-  | "queued" | "submitted" | "rendering" | "publishing" | "done" | "failed";
+  | "queued" | "fetching" | "transcribing" | "analyzing" | "done" | "failed";
 
 export interface JobEvent {
   job_id: string;
@@ -36,6 +36,7 @@ export interface DiscoveryItem {
 export interface ClipResult {
   clip_id: string;
   job_id: string;
+  source_url: string;
   clip_url: string;
   platform: string;
   post_id: string;
@@ -43,7 +44,13 @@ export interface ClipResult {
   title: string;
   topic: string;
   hook: string;
+  quote: string;
+  reason: string;
+  start_seconds: number;
+  end_seconds: number;
   length_seconds: number;
+  render_status: string;
+  post_status: string;
   views: number;
   likes: number;
   shares: number;

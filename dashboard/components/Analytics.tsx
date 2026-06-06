@@ -11,10 +11,10 @@ import {
 import type { Patterns } from "@/lib/types";
 
 interface AnalyticsData {
-  timeline: { posted_at: string; engagement: number; views: number }[];
+  timeline: { engagement: number; views: number }[];
   topicStats: { topic: string; avg_engagement: number; views: number; clips: number }[];
   patterns: Patterns | null;
-  totals: { clips: number; views: number };
+  totals: { moments: number; posted: number; views: number; avg_virality: number };
 }
 
 export default function Analytics({ refreshKey }: { refreshKey: number }) {
@@ -41,11 +41,15 @@ export default function Analytics({ refreshKey }: { refreshKey: number }) {
 
   return (
     <div className="panel">
-      <h2>Analytics — Engagement & Winning Patterns</h2>
+      <h2>Analytics — Predicted Virality & Winning Patterns</h2>
       <div className="stat-row">
-        <div className="stat"><div className="n">{data.totals.clips}</div><div className="l">clips</div></div>
-        <div className="stat"><div className="n">{data.totals.views.toLocaleString()}</div><div className="l">total views</div></div>
-        <div className="stat"><div className="n">{data.topicStats.length}</div><div className="l">topics tracked</div></div>
+        <div className="stat"><div className="n">{data.totals.moments}</div><div className="l">moments detected</div></div>
+        <div className="stat"><div className="n">{(data.totals.avg_virality || 0).toFixed(2)}</div><div className="l">avg predicted virality</div></div>
+        <div className="stat"><div className="n">{data.totals.posted}</div><div className="l">posted (live)</div></div>
+      </div>
+      <div className="muted" style={{ fontSize: 11, marginBottom: 10 }}>
+        Scores are GPT predicted virality from the real transcript. Real views/likes appear
+        once clips are rendered (OpenShorts) and posted (platform credentials).
       </div>
 
       <div style={{ height: 160, marginBottom: 16 }}>

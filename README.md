@@ -19,31 +19,41 @@ Lane A  discovery-orchestrator/  trending discovery + the autonomous loop (FastA
 Lane B  performance/             metrics collection + pattern learning + A/B variants
 Lane C  engine/                  OpenShorts wrapper: POST /process -> {job_id}
 Lane D  dashboard/               Next.js + CopilotKit mission control
-shared/                          the contract: keys.py + schemas.py + types.ts + stubs.py
+shared/                          the contract: keys.py + schemas.py + types.ts
 ```
 
 Data flow:
-`discovery:queue → jobs:{id} → OpenShorts → results:{clip} → patterns:current → (back to A)`
+`discovery:queue → jobs:{id} → transcript+GPT moments → results:{clip} → patterns:current → (back to A)`
 
 See **CLAUDE.md** for the full contract table and build order.
 
-## Quick start (MOCK mode — works with zero external keys)
+## Real data, no mocks
+ClipPilot runs on real data only — there are no stub/seed/simulate paths:
+- **Discovery** uses real YouTube search via `yt-dlp` (real titles, channels, **real view
+  counts**) — needs no API key.
+- **Viral-moment detection** pulls the **real transcript** (YouTube captions via yt-dlp,
+  Whisper fallback) and GPT picks real moments (real quote, timestamps, hook, score) —
+  needs `OPENAI_API_KEY`.
+- **Video render** (OpenShorts) and **posting** (Upload-Post + platform creds) are not
+  wired yet, so clips show honest `render_status=pending` / `post_status=not_posted` and
+  metrics stay zero until real numbers exist — never simulated.
+
+## Quick start
 ```bash
-cp .env.example .env
-docker compose up redis -d
+cp .env.example .env                      # set OPENAI_API_KEY (for moment detection)
+docker run -d --name clippilot-redis -p 6379:6379 redis/redis-stack:latest
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python -m shared.stubs --all              # seed every Redis key with fake data
 
 uvicorn engine.app:app --port 8001                       # Lane C
 uvicorn discovery_orchestrator.app:app --port 8000       # Lane A
-python -m performance.worker --simulate --loop           # Lane B
+python -m performance.worker --loop                      # Lane B
 cd dashboard && npm i && npm run dev                     # Lane D -> http://localhost:3000
 ```
 
-Trigger one full autonomous cycle:
+Trigger one full real cycle (discover → detect moments):
 ```bash
-curl -X POST localhost:8000/run-once
+curl -X POST localhost:8000/run-once -H 'content-type: application/json' -d '{"topic":"tech"}'
 curl localhost:8000/status
 ```
 
@@ -52,12 +62,6 @@ Or in the dashboard copilot, type:
 
 ## Full stack via Docker
 ```bash
-cp .env.example .env   # fill OPENAI_API_KEY, YOUTUBE_API_KEY for REAL mode
+cp .env.example .env   # set OPENAI_API_KEY (+ UPLOAD_POST_API_KEY for render/post later)
 docker compose up --build
 ```
-
-## Modes
-- `ENGINE_MODE=MOCK` — fakes rendering/posting but honors the full contract (demo-safe).
-- `ENGINE_MODE=REAL` — calls vendored OpenShorts (`engine/openshorts/`).
-- `PERFORMANCE_SIMULATE=1` — seeds realistic metrics so analytics work before platform
-  numbers land.

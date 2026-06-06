@@ -19,9 +19,9 @@ export const trendKey = (id: string) => `trend:${id}`;
 
 export const STAGES = [
   "queued",
-  "submitted",
-  "rendering",
-  "publishing",
+  "fetching",
+  "transcribing",
+  "analyzing",
   "done",
   "failed",
 ] as const;
@@ -66,19 +66,26 @@ export interface JobEvent {
 export interface ClipResult {
   clip_id: string;
   job_id: string;
+  source_url: string;
   clip_url: string;
-  platform: Platform;
+  platform: string;
   post_id: string;
   posted_at: string;
   title: string;
   topic: string;
   hook: string;
+  quote: string;
+  reason: string;
+  start_seconds: number;
+  end_seconds: number;
   length_seconds: number;
+  render_status: string; // pending | rendered
+  post_status: string; // not_posted | posted
   views: number;
   likes: number;
   shares: number;
   watch_time: number;
-  engagement_score: number;
+  engagement_score: number; // GPT predicted virality until real metrics land
 }
 
 export interface Patterns {

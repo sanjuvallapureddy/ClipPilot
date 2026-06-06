@@ -105,7 +105,8 @@ def process_item(item: DiscoveryItem, patterns: Patterns | None = None) -> str |
             engine_job_id = resp.json()["job_id"]
         job.engine_job_id = engine_job_id
         write_job(job, r)
-        advance_job(job, "submitted", message=f"engine job {engine_job_id}", r=r)
+        # engine drives the real stages (fetching -> transcribing -> analyzing -> done)
+        coord("A", "info", f"submitted {job_id} to engine job {engine_job_id}")
     except Exception as e:
         advance_job(job, "failed", status="error", error=str(e),
                     message="engine submit failed", r=r)

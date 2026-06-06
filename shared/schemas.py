@@ -58,7 +58,7 @@ class Job(BaseModel):
 
     job_id: str
     episode_url: str
-    stage: str = "queued"  # queued|submitted|rendering|publishing|done|failed
+    stage: str = "queued"  # queued|fetching|transcribing|analyzing|done|failed
     status: str = "ok"  # ok | error
     retries: int = 0
     title: str = ""
@@ -95,23 +95,36 @@ class JobEvent(BaseModel):
 
 
 class ClipResult(BaseModel):
-    """The `results:{clip_id}` hash (§4)."""
+    """The `results:{clip_id}` hash (§4).
+
+    A clip is a REAL viral moment detected by GPT from the real transcript: real quote,
+    real timestamps, real hook, real predicted score. `render_status`/`post_status` and
+    the zeroed metrics are honest placeholders for work that needs OpenShorts (render) and
+    platform credentials (publish) — NEVER simulated.
+    """
 
     clip_id: str
     job_id: str
-    clip_url: str = ""
-    platform: str = "tiktok"  # tiktok|instagram|youtube
+    source_url: str = ""  # the real episode URL the moment came from
+    clip_url: str = ""  # populated only once OpenShorts renders the vertical short
+    platform: str = ""  # set only once actually posted
     post_id: str = ""
     posted_at: str = ""
     title: str = ""
     topic: str = ""
-    hook: str = ""
+    hook: str = ""  # real GPT-generated hook
+    quote: str = ""  # real verbatim line from the transcript
+    reason: str = ""  # why GPT flagged it as viral
+    start_seconds: float = 0.0  # real timestamp in the source
+    end_seconds: float = 0.0
     length_seconds: float = 0.0
+    render_status: str = "pending"  # pending (needs OpenShorts) | rendered
+    post_status: str = "not_posted"  # not_posted (needs platform creds) | posted
     views: int = 0
     likes: int = 0
     shares: int = 0
-    watch_time: float = 0.0  # avg seconds watched
-    engagement_score: float = 0.0
+    watch_time: float = 0.0  # avg seconds watched (only once posted)
+    engagement_score: float = 0.0  # GPT predicted virality until real metrics land
 
     def to_redis(self) -> dict[str, str]:
         return _flatten(self.model_dump())
@@ -121,7 +134,8 @@ class ClipResult(BaseModel):
         d = {k: (v.decode() if isinstance(v, bytes) else v) for k, v in d.items()}
         for f in ("views", "likes", "shares"):
             d[f] = int(float(d.get(f) or 0))
-        for f in ("length_seconds", "watch_time", "engagement_score"):
+        for f in ("start_seconds", "end_seconds", "length_seconds", "watch_time",
+                  "engagement_score"):
             d[f] = float(d.get(f) or 0.0)
         return cls(**d)
 

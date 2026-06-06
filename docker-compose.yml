@@ -1,6 +1,6 @@
 # ClipPilot — full stack. redis-stack (vector search) + python services + dashboard.
-# OpenShorts is vendored under engine/openshorts (see engine/README); in MOCK mode the
-# engine wrapper needs no OpenShorts container.
+# Engine runs the real pipeline (yt-dlp transcript + GPT moment detection). Video render
+# (OpenShorts) and posting (Upload-Post) are added when those credentials are configured.
 services:
   redis:
     image: redis/redis-stack:latest   # RediSearch + RedisJSON for idx:trends

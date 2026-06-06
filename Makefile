@@ -1,12 +1,11 @@
-# ClipPilot dev shortcuts. MOCK/simulate modes need zero external keys.
-.PHONY: help redis seed engine orchestrator performance dashboard test demo down
+# ClipPilot dev shortcuts. Discovery works with no keys; moment detection needs OPENAI_API_KEY.
+.PHONY: help redis engine orchestrator performance dashboard test demo down
 
 help:
 	@echo "make redis         # start redis-stack (vector search)"
-	@echo "make seed          # seed every Redis key with stub data"
-	@echo "make engine        # Lane C  -> :8001"
-	@echo "make orchestrator  # Lane A  -> :8000"
-	@echo "make performance   # Lane B  (simulate + loop)"
+	@echo "make engine        # Lane C  -> :8001 (real transcript + GPT moments)"
+	@echo "make orchestrator  # Lane A  -> :8000 (real yt-dlp discovery)"
+	@echo "make performance   # Lane B  (real metrics + learning loop)"
 	@echo "make dashboard     # Lane D  -> :3000"
 	@echo "make test          # run offline test suite"
 	@echo "make demo          # one autonomous cycle via the control API"
@@ -15,9 +14,6 @@ help:
 redis:
 	docker run -d --name clippilot-redis -p 6379:6379 redis/redis-stack:latest || docker start clippilot-redis
 
-seed:
-	python -m shared.stubs --all
-
 engine:
 	uvicorn engine.app:app --port 8001 --reload
 
@@ -25,7 +21,7 @@ orchestrator:
 	uvicorn discovery_orchestrator.app:app --port 8000 --reload
 
 performance:
-	python -m performance.worker --simulate --loop
+	python -m performance.worker --loop
 
 dashboard:
 	cd dashboard && npm run dev

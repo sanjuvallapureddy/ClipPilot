@@ -1,15 +1,14 @@
-"""Lane B — metric collection.
+"""Lane B — metric collection (REAL only).
 
-For each posted clip (results:{clip_id}), fetch real performance from Upload-Post /
-platform APIs and update the hash. `--simulate` seeds realistic metrics so analytics and
-learning work before platform numbers land (results often lag hours).
+Polls Upload-Post / platform APIs for clips that have actually been posted
+(post_status == "posted") and updates their `results:{clip_id}` hash with real views /
+likes / shares / watch time. There is NO simulation: until clips are rendered (OpenShorts)
+and posted (platform credentials), there are no real metrics, so collection is a no-op and
+the numbers stay zero — honest, never invented.
 """
 from __future__ import annotations
 
-import math
 import os
-import random
-import time
 
 from shared import keys
 from shared.redis_client import coord, get_client
@@ -19,35 +18,17 @@ from shared.schemas import ClipResult
 def _engagement(views: int, likes: int, shares: int, watch: float, length: float) -> float:
     if views <= 0:
         return 0.0
-    rate = (likes + 3 * shares) / views
-    completion = (watch / length) if length else 0.0
-    return round(rate + 0.3 * completion, 4)
-
-
-def simulate_metrics(clip: ClipResult) -> ClipResult:
-    """Seed realistic, score-correlated metrics. Higher seed engagement_score -> more reach."""
-    base = clip.engagement_score or random.uniform(0.3, 0.7)
-    virality = max(0.1, min(1.5, random.gauss(base * 1.3, 0.25)))
-    views = int(math.exp(random.uniform(6.5, 11.5)) * virality)  # ~600 .. 250k
-    likes = int(views * random.uniform(0.03, 0.16) * base)
-    shares = int(views * random.uniform(0.002, 0.04) * base)
-    length = clip.length_seconds or random.uniform(20, 45)
-    watch = round(length * random.uniform(0.4, 0.95), 1)
-    clip.views, clip.likes, clip.shares = views, likes, shares
-    clip.length_seconds, clip.watch_time = length, watch
-    clip.engagement_score = _engagement(views, likes, shares, watch, length)
-    return clip
+    return round((likes + 3 * shares) / views + 0.3 * ((watch / length) if length else 0), 4)
 
 
 def fetch_upload_post_metrics(clip: ClipResult) -> ClipResult:  # pragma: no cover
-    """Poll Upload-Post / platform APIs for one clip. Returns clip updated in place."""
+    """Poll Upload-Post analytics for one posted clip. Verify endpoint vs. their docs."""
     api_key = os.getenv("UPLOAD_POST_API_KEY")
     if not api_key or not clip.post_id:
         return clip
     try:
         import httpx
 
-        # NOTE: verify Upload-Post analytics endpoint shape against their docs.
         with httpx.Client(timeout=15) as c:
             r = c.get(
                 f"https://api.upload-post.com/v1/posts/{clip.post_id}/analytics",
@@ -67,9 +48,11 @@ def fetch_upload_post_metrics(clip: ClipResult) -> ClipResult:  # pragma: no cov
     return clip
 
 
-def collect(simulate: bool | None = None) -> int:
-    """Update every results:{clip_id} with fresh metrics. Returns count updated."""
-    simulate = os.getenv("PERFORMANCE_SIMULATE", "1") == "1" if simulate is None else simulate
+def collect() -> int:
+    """Update metrics for clips that are actually posted. Returns count updated."""
+    if not os.getenv("UPLOAD_POST_API_KEY"):
+        coord("B", "info", "no UPLOAD_POST_API_KEY — no real metrics to collect yet")
+        return 0
     r = get_client()
     n = 0
     for clip_id in list(r.smembers(keys.RESULTS_SET)):
@@ -77,10 +60,10 @@ def collect(simulate: bool | None = None) -> int:
         if not d:
             continue
         clip = ClipResult.from_redis(d)
-        clip = simulate_metrics(clip) if simulate else fetch_upload_post_metrics(clip)
-        if not clip.posted_at:
-            clip.posted_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        if clip.post_status != "posted":
+            continue
+        clip = fetch_upload_post_metrics(clip)
         r.hset(keys.result_key(clip_id), mapping=clip.to_redis())
         n += 1
-    coord("B", "milestone", f"collected metrics for {n} clips (simulate={simulate})")
+    coord("B", "milestone", f"collected REAL metrics for {n} posted clips")
     return n

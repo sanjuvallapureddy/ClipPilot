@@ -2,7 +2,11 @@
 import { useEffect, useState } from "react";
 import type { ClipResult } from "@/lib/types";
 
-const ICON: Record<string, string> = { tiktok: "🎵", instagram: "📸", youtube: "▶️" };
+function ts(s: number) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, "0")}`;
+}
 
 export default function ClipsGallery({ refreshKey }: { refreshKey: number }) {
   const [clips, setClips] = useState<ClipResult[]>([]);
@@ -24,23 +28,47 @@ export default function ClipsGallery({ refreshKey }: { refreshKey: number }) {
 
   return (
     <div className="panel">
-      <h2>Clips Gallery ({clips.length})</h2>
-      {clips.length === 0 && <div className="muted">No published clips yet.</div>}
-      <div className="clips">
+      <h2>Detected Viral Moments ({clips.length})</h2>
+      {clips.length === 0 && (
+        <div className="muted">
+          No moments yet. Run the pipeline on a real episode — moments are detected from the
+          real transcript by GPT.
+        </div>
+      )}
+      <div className="moments">
         {clips.map((c) => (
-          <div className="clip" key={c.clip_id}>
-            <div className="thumb">{ICON[c.platform] || "🎬"}</div>
-            <div className="t">{c.title}</div>
-            <div className="meta">
-              <span className={`pill ${c.post_id ? "done" : "queued"}`}>
-                {c.post_id ? "posted" : "pending"}
-              </span>
-              <span>{c.views.toLocaleString()} views</span>
+          <div className="moment" key={c.clip_id}>
+            <div className="moment-head">
+              <span className="score">{c.engagement_score.toFixed(2)}</span>
+              <span className="moment-hook">{c.hook}</span>
             </div>
-            <div className="meta">
-              <span>♥ {c.likes.toLocaleString()}</span>
-              <span>↗ {c.shares.toLocaleString()}</span>
-              <span className="score">{c.engagement_score.toFixed(3)}</span>
+            {c.quote && <div className="moment-quote">“{c.quote}”</div>}
+            {c.reason && <div className="muted moment-reason">{c.reason}</div>}
+            <div className="moment-meta">
+              {c.topic && <span className="tag">{c.topic}</span>}
+              <span className="tag">
+                {ts(c.start_seconds)}–{ts(c.end_seconds)} ({Math.round(c.length_seconds)}s)
+              </span>
+              {c.source_url && (
+                <a
+                  className="tag link"
+                  href={`${c.source_url}&t=${Math.floor(c.start_seconds)}s`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  ▶ watch source
+                </a>
+              )}
+            </div>
+            <div className="moment-status">
+              <span className={`pill ${c.render_status === "rendered" ? "done" : "queued"}`}>
+                {c.render_status === "rendered" ? "rendered" : "render pending (OpenShorts)"}
+              </span>
+              <span className={`pill ${c.post_status === "posted" ? "done" : "queued"}`}>
+                {c.post_status === "posted"
+                  ? `posted · ${c.views.toLocaleString()} views`
+                  : "not posted (needs platform creds)"}
+              </span>
             </div>
           </div>
         ))}

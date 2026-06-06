@@ -1,7 +1,8 @@
-"""Lane C — OpenShorts wrapper API.
+"""Lane C — viral-moment detection API (OpenShorts wrapper surface).
 
 Contract (§4): POST /process {youtube_url, config} -> {job_id}; GET /status/{job_id}.
-ENGINE_MODE=MOCK runs end-to-end with no external deps; REAL delegates to OpenShorts.
+Runs the REAL pipeline: real transcript -> GPT moment detection. Video render + posting
+need OpenShorts + platform credentials; results carry honest render/post status until then.
 """
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ from shared.schemas import EngineStatus, ProcessRequest, ProcessResponse
 
 from . import pipeline
 
-app = FastAPI(title="ClipPilot Engine (OpenShorts wrapper)", version="0.1.0")
+app = FastAPI(title="ClipPilot Engine", version="0.2.0")
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )
@@ -23,12 +24,12 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def _startup() -> None:
-    coord("C", "milestone", f"engine up in {os.getenv('ENGINE_MODE', 'MOCK')} mode")
+    coord("C", "milestone", "engine up (real transcript + GPT moment detection)")
 
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "mode": os.getenv("ENGINE_MODE", "MOCK")}
+    return {"ok": True, "llm": bool(os.getenv("OPENAI_API_KEY"))}
 
 
 @app.post("/process", response_model=ProcessResponse)

@@ -62,5 +62,8 @@ ORCHESTRATOR_GROUP = "orchestrator"
 ORCHESTRATOR_CONSUMER = "orchestrator-1"
 
 # --- Job stages (state machine) ---
-STAGES = ["queued", "submitted", "rendering", "publishing", "done", "failed"]
+# Reflects the REAL pipeline we can run with an OpenAI key (transcript + GPT moment
+# detection). Video render + social publishing require OpenShorts + platform creds;
+# until those are wired, clips carry render_status/post_status fields instead of fakes.
+STAGES = ["queued", "fetching", "transcribing", "analyzing", "done", "failed"]
 PLATFORMS = ["tiktok", "instagram", "youtube"]

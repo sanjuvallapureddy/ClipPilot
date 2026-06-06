@@ -9,8 +9,6 @@ import os
 import fakeredis
 import pytest
 
-os.environ.setdefault("ENGINE_MODE", "MOCK")
-os.environ.setdefault("PERFORMANCE_SIMULATE", "1")
 os.environ.setdefault("DISCOVERY_TOP_N", "5")
 
 import shared.redis_client as rc

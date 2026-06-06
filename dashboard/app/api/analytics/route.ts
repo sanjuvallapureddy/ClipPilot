@@ -8,26 +8,26 @@ export async function GET() {
   const r = redis();
   const ids = await r.smembers(KEYS.RESULTS_SET);
 
-  const points: { posted_at: string; engagement: number; views: number; topic: string }[] =
-    [];
+  const points: { engagement: number; views: number; topic: string }[] = [];
   const byTopic: Record<string, { eng: number[]; views: number }> = {};
-  const byPlatform: Record<string, { views: number; clips: number }> = {};
+  let posted = 0;
+  let totalViews = 0;
 
   for (const id of ids) {
     const f = await r.hgetall(resultKey(id));
-    if (!f || !f.posted_at) continue;
+    if (!f || Object.keys(f).length === 0) continue;
     const eng = parseFloat(f.engagement_score || "0");
     const views = parseInt(f.views || "0", 10);
     const topic = f.topic || "unknown";
-    const platform = f.platform || "unknown";
-    points.push({ posted_at: f.posted_at, engagement: eng, views, topic });
+    if (f.post_status === "posted") posted += 1;
+    totalViews += views;
+    points.push({ engagement: eng, views, topic });
     (byTopic[topic] ??= { eng: [], views: 0 }).eng.push(eng);
     byTopic[topic].views += views;
-    (byPlatform[platform] ??= { views: 0, clips: 0 }).views += views;
-    byPlatform[platform].clips += 1;
   }
 
-  points.sort((a, b) => a.posted_at.localeCompare(b.posted_at));
+  // chart by descending predicted virality (real GPT scores) until real metrics exist
+  points.sort((a, b) => b.engagement - a.engagement);
 
   const topicStats = Object.entries(byTopic)
     .map(([topic, v]) => ({
@@ -41,17 +41,20 @@ export async function GET() {
   const patternsRaw = await r.get(KEYS.PATTERNS_CURRENT);
   const patterns = patternsRaw ? JSON.parse(patternsRaw) : null;
 
+  const avgVirality =
+    points.length > 0
+      ? points.reduce((a, p) => a + p.engagement, 0) / points.length
+      : 0;
+
   return Response.json({
     timeline: points,
     topicStats,
-    platformStats: Object.entries(byPlatform).map(([platform, v]) => ({
-      platform,
-      ...v,
-    })),
     patterns,
     totals: {
-      clips: ids.length,
-      views: points.reduce((a, p) => a + p.views, 0),
+      moments: ids.length,
+      posted,
+      views: totalViews,
+      avg_virality: avgVirality,
     },
   });
 }

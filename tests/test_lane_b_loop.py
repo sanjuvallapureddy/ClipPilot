@@ -30,7 +30,7 @@ def _seed_results():
 def test_loop_closes():
     _seed_results()
 
-    collector.collect(simulate=True)
+    collector.collect()  # no upload key -> no-op (no fake metrics invented)
     patterns = learn.learn()
     assert isinstance(patterns, Patterns)
     assert patterns.winning_topics[0].startswith("ai agents"), patterns.winning_topics
