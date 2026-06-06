@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
+import { ListVideo } from "lucide-react";
 import type { DiscoveryItem } from "@/lib/types";
+import { SectionCard, Badge } from "@/components/ui";
 
 export default function DiscoveredQueue({ refreshKey }: { refreshKey: number }) {
   const [items, setItems] = useState<(DiscoveryItem & { id: string })[]>([]);
@@ -21,21 +23,35 @@ export default function DiscoveredQueue({ refreshKey }: { refreshKey: number }) 
   }, [refreshKey]);
 
   return (
-    <div className="panel">
-      <h2>Discovered Queue ({items.length})</h2>
-      {items.length === 0 && <div className="muted">No candidates yet — ask the copilot to discover.</div>}
-      {items.map((it) => (
-        <div className="qitem" key={it.id}>
-          <span className="score">{(it.trend_score ?? 0).toFixed(2)}</span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="evt-title">{it.title}</div>
-            <div className="muted" style={{ fontSize: 11 }}>
-              {it.podcast} · {it.topic}
-            </div>
-          </div>
-          <span className="tag">{it.source}</span>
+    <SectionCard
+      title="Discovered Queue"
+      icon={ListVideo}
+      right={<span className="font-mono text-[11px] text-neutral-500">{items.length}</span>}
+    >
+      {items.length === 0 && (
+        <div className="py-6 text-center font-mono text-xs text-neutral-600">
+          No candidates yet — ask the copilot to discover.
         </div>
-      ))}
-    </div>
+      )}
+      <div className="flex flex-col">
+        {items.map((it) => (
+          <div
+            key={it.id}
+            className="flex items-center gap-3 border-b border-neutral-900/70 py-2.5 last:border-b-0"
+          >
+            <span className="font-mono text-sm font-semibold tabular-nums text-emerald-400">
+              {(it.trend_score ?? 0).toFixed(2)}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-xs text-neutral-200">{it.title}</div>
+              <div className="truncate font-mono text-[10px] text-neutral-500">
+                {it.podcast} · {it.topic}
+              </div>
+            </div>
+            <Badge>{it.source}</Badge>
+          </div>
+        ))}
+      </div>
+    </SectionCard>
   );
 }

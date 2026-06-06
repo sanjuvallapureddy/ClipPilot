@@ -8,7 +8,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { BarChart3, Sparkles, Trophy, Send, Activity } from "lucide-react";
 import type { Patterns } from "@/lib/types";
+import { SectionCard, MetricCard, Badge } from "@/components/ui";
 
 interface AnalyticsData {
   timeline: { engagement: number; views: number }[];
@@ -35,66 +37,113 @@ export default function Analytics({ refreshKey }: { refreshKey: number }) {
     };
   }, [refreshKey]);
 
-  if (!data) return <div className="panel"><h2>Analytics</h2><div className="muted">Loading…</div></div>;
+  if (!data)
+    return (
+      <SectionCard title="Analytics" icon={BarChart3}>
+        <div className="py-6 text-center font-mono text-xs text-neutral-600">Loading…</div>
+      </SectionCard>
+    );
 
-  const series = data.timeline.map((p, i) => ({ i, engagement: +p.engagement.toFixed(3), views: p.views }));
+  const series = data.timeline.map((p, i) => ({
+    i,
+    engagement: +p.engagement.toFixed(3),
+    views: p.views,
+  }));
 
   return (
-    <div className="panel">
-      <h2>Analytics — Predicted Virality & Winning Patterns</h2>
-      <div className="stat-row">
-        <div className="stat"><div className="n">{data.totals.moments}</div><div className="l">moments detected</div></div>
-        <div className="stat"><div className="n">{(data.totals.avg_virality || 0).toFixed(2)}</div><div className="l">avg predicted virality</div></div>
-        <div className="stat"><div className="n">{data.totals.posted}</div><div className="l">posted (live)</div></div>
-      </div>
-      <div className="muted" style={{ fontSize: 11, marginBottom: 10 }}>
-        Scores are GPT predicted virality from the real transcript. Real views/likes appear
-        once clips are rendered (OpenShorts) and posted (platform credentials).
+    <SectionCard title="Analytics · Predicted Virality & Winning Patterns" icon={BarChart3}>
+      <div className="grid grid-cols-3 gap-3">
+        <MetricCard title="Moments" icon={Sparkles} value={data.totals.moments} description="detected" />
+        <MetricCard
+          title="Avg Virality"
+          icon={Activity}
+          value={(data.totals.avg_virality || 0).toFixed(2)}
+          description="predicted"
+        />
+        <MetricCard title="Posted" icon={Send} value={data.totals.posted} description="live" />
       </div>
 
-      <div style={{ height: 160, marginBottom: 16 }}>
+      <p className="mt-4 font-mono text-[10px] leading-relaxed text-neutral-600">
+        Scores are GPT predicted virality from the real transcript. Real views/likes appear
+        once clips are rendered (OpenShorts) and posted (platform credentials).
+      </p>
+
+      <div className="mt-4 h-40">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={series}>
+          <AreaChart data={series} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
             <defs>
-              <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#7c5cff" stopOpacity={0.7} />
-                <stop offset="100%" stopColor="#7c5cff" stopOpacity={0} />
+              <linearGradient id="engagementFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#f5f5f5" stopOpacity={0.18} />
+                <stop offset="100%" stopColor="#f5f5f5" stopOpacity={0} />
               </linearGradient>
             </defs>
             <XAxis dataKey="i" hide />
             <YAxis hide />
-            <Tooltip contentStyle={{ background: "#14161f", border: "1px solid #272a3a", borderRadius: 8 }} />
-            <Area type="monotone" dataKey="engagement" stroke="#7c5cff" fill="url(#g)" strokeWidth={2} />
+            <Tooltip
+              cursor={{ stroke: "#262626", strokeWidth: 1 }}
+              contentStyle={{
+                background: "#0a0a0a",
+                border: "1px solid #262626",
+                borderRadius: 8,
+                fontSize: 11,
+                fontFamily: "ui-monospace, monospace",
+              }}
+              labelStyle={{ color: "#737373" }}
+              itemStyle={{ color: "#f5f5f5" }}
+            />
+            <Area
+              type="monotone"
+              dataKey="engagement"
+              stroke="#f5f5f5"
+              fill="url(#engagementFill)"
+              strokeWidth={1.5}
+            />
           </AreaChart>
         </ResponsiveContainer>
       </div>
 
-      <h2 style={{ marginTop: 8 }}>Top Topics</h2>
-      {data.topicStats.slice(0, 5).map((t) => (
-        <div key={t.topic} style={{ marginBottom: 8 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
-            <span>{t.topic}</span>
-            <span className="score">{t.avg_engagement.toFixed(3)}</span>
+      <h3 className="mb-3 mt-5 text-xs font-medium uppercase tracking-wider text-neutral-500">
+        Top Topics
+      </h3>
+      <div className="flex flex-col gap-2.5">
+        {data.topicStats.slice(0, 5).map((t) => (
+          <div key={t.topic}>
+            <div className="mb-1 flex items-center justify-between text-xs">
+              <span className="text-neutral-300">{t.topic}</span>
+              <span className="font-mono tabular-nums text-emerald-400">
+                {t.avg_engagement.toFixed(3)}
+              </span>
+            </div>
+            <div className="h-1 overflow-hidden rounded-full bg-neutral-900">
+              <span
+                className="block h-full rounded-full bg-neutral-100"
+                style={{ width: `${Math.min(100, t.avg_engagement * 100)}%` }}
+              />
+            </div>
           </div>
-          <div className="bar">
-            <span style={{ width: `${Math.min(100, t.avg_engagement * 100)}%` }} />
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
 
       {data.patterns && (
-        <div style={{ marginTop: 14, borderTop: "1px solid var(--border)", paddingTop: 12 }}>
-          <h2>Learned Patterns (Lane B → Lane A)</h2>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>{data.patterns.summary}</div>
-          <div>
-            {data.patterns.winning_topics?.map((t) => <span className="tag" key={t}>🏆 {t}</span>)}
+        <div className="mt-5 border-t border-neutral-900 pt-4">
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-neutral-500">
+            Learned Patterns (Lane B → Lane A)
+          </h3>
+          <p className="mb-3 text-xs text-neutral-400">{data.patterns.summary}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {data.patterns.winning_topics?.map((t) => (
+              <Badge key={t}>
+                <Trophy size={10} className="text-neutral-500" />
+                {t}
+              </Badge>
+            ))}
           </div>
-          <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+          <p className="mt-3 font-mono text-[10px] text-neutral-600">
             ideal length {data.patterns.ideal_length_min}–{data.patterns.ideal_length_max}s ·
             caption: {data.patterns.caption_style}
-          </div>
+          </p>
         </div>
       )}
-    </div>
+    </SectionCard>
   );
 }
