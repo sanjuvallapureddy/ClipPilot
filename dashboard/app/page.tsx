@@ -22,6 +22,7 @@ import ActivityTicker from "@/components/ActivityTicker";
 import CommandMenu from "@/components/CommandMenu";
 import YouTubeConnect from "@/components/YouTubeConnect";
 import ManualUpload from "@/components/ManualUpload";
+import MockEditingStudio from "@/components/MockEditingStudio";
 import Sidebar, { NAV_ITEMS } from "@/components/Sidebar";
 import Aurora from "@/components/Aurora";
 import ScrollProgress from "@/components/ScrollProgress";
@@ -535,6 +536,10 @@ export default function Page() {
 
         <Reveal id="live-pipeline" className="scroll-mt-20">
           <LivePipeline />
+        </Reveal>
+
+        <Reveal id="editing-studio" className="scroll-mt-20">
+          <MockEditingStudio />
         </Reveal>
 
         <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_0.9fr]">

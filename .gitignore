@@ -15,6 +15,10 @@ node_modules/
 dist/
 build/
 *.mp4
+*.mp4.part
+*.part
+*.webm
+*.mkv
 *.log
 .DS_Store
 # downloaded source videos (Lane C ingest)

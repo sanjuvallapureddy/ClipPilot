@@ -5,6 +5,7 @@ import {
   Clapperboard,
   LayoutDashboard,
   Activity,
+  Wand2,
   Flame,
   BarChart3,
   Compass,
@@ -27,6 +28,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard, accent: "text-neutral-200" },
   { id: "live-pipeline", label: "Pipeline", icon: Activity, accent: "text-violet-400" },
+  { id: "editing-studio", label: "Editing", icon: Wand2, accent: "text-fuchsia-400" },
   { id: "viral-moments", label: "Clips", icon: Flame, accent: "text-amber-400" },
   { id: "analytics", label: "Analytics", icon: BarChart3, accent: "text-blue-400" },
   { id: "discovered-queue", label: "Discovery", icon: Compass, accent: "text-cyan-400" },
