@@ -40,4 +40,16 @@ body {
   --copilot-kit-contrast-color: #000000;
   --copilot-kit-separator-color: #1a1a1a;
   --copilot-kit-muted-color: #737373;
+  --copilot-kit-input-background-color: #f5f5f5;
+}
+
+/* Input uses a light background — typed text must be dark to stay readable. */
+.copilotKitSidebar .copilotKitInput > textarea,
+.copilotKitWindow .copilotKitInput > textarea {
+  color: #1c1c1c !important;
+}
+
+.copilotKitSidebar .copilotKitInput > textarea::placeholder,
+.copilotKitWindow .copilotKitInput > textarea::placeholder {
+  color: #737373 !important;
 }

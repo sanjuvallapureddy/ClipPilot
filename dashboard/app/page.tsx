@@ -1,8 +1,8 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
 import { useCopilotAction, useCopilotReadable } from "@copilotkit/react-core";
 import {
-  Clapperboard,
   Search,
   Play,
   Square,
@@ -204,8 +204,15 @@ export default function Page() {
     <div className="min-h-screen bg-black">
       <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-neutral-900 bg-black/50 px-6 backdrop-blur-md">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md border border-neutral-800 bg-neutral-950">
-            <Clapperboard size={16} className="text-neutral-100" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-neutral-800 bg-neutral-950 shadow-[0_0_24px_rgba(255,255,255,0.08)]">
+            <Image
+              src="/clippilot-paper-airplane-transparent.png"
+              alt="ClipPilot paper airplane logo"
+              width={28}
+              height={28}
+              priority
+              className="h-7 w-7 object-contain"
+            />
           </div>
           <div className="flex flex-col leading-tight">
             <h1 className="text-sm font-semibold tracking-tight text-neutral-100">
