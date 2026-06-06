@@ -1,20 +1,11 @@
-"""Offline smoke test for Lane C MOCK pipeline using fakeredis.
+"""Offline smoke test for Lane C MOCK pipeline.
 
-Proves: POST /process semantics -> job walks stages -> results:{clip_id} written
-with sandbox post ids -> jobs:{id} advanced to done. Run: .venv/bin/python -m pytest -q
-(or just `.venv/bin/python tests/test_engine_mock.py`).
+Proves: POST /process semantics -> job walks stages -> results:{clip_id} written with
+sandbox post ids -> jobs:{id} advanced to done. Uses the shared fakeredis from conftest.
 """
 import asyncio
-import os
 
-import fakeredis
-
-os.environ["ENGINE_MODE"] = "MOCK"
-
-import shared.redis_client as rc
-
-_fake = fakeredis.FakeStrictRedis(decode_responses=True)
-rc.get_client = lambda decode=True: _fake  # patch the single connection point
+from conftest import FAKE as _fake
 
 from shared import keys
 from shared.redis_client import write_job
@@ -23,7 +14,6 @@ from engine import pipeline
 
 
 async def _main():
-    # Lane A would create the job; simulate that
     job = Job(job_id="job-test1", episode_url="https://youtube.com/watch?v=abc",
               title="All-In", topic="ai agents")
     write_job(job, _fake)
@@ -36,7 +26,6 @@ async def _main():
     eng_id = pipeline.submit(req)
     assert eng_id.startswith("eng-")
 
-    # poll until done
     for _ in range(100):
         st = pipeline.get_status(eng_id)
         if st and st.stage in ("done", "failed"):
@@ -47,7 +36,6 @@ async def _main():
     assert st.stage == "done", f"engine stage={st.stage} err={st.error}"
     assert len(st.clips) == 3, st.clips
 
-    # contract assertions
     clip_ids = _fake.smembers(keys.RESULTS_SET)
     assert len(clip_ids) == 3
     for cid in clip_ids:
@@ -63,13 +51,6 @@ async def _main():
     stages_seen = [e[1]["stage"] for e in events]
     assert "rendering" in stages_seen and "done" in stages_seen, stages_seen
 
-    print("PASS: engine MOCK pipeline honored full contract")
-    print(f"  engine_job={eng_id}  clips={len(clip_ids)}  job_stages={stages_seen}")
-
 
 def test_engine_mock():
-    asyncio.run(_main())
-
-
-if __name__ == "__main__":
     asyncio.run(_main())

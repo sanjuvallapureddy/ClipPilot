@@ -1,34 +1,20 @@
 """Offline integration test: Lane A (discovery + orchestrator) -> Lane C (engine).
 
-Uses fakeredis for the contract and a fake httpx transport that runs the REAL engine
-pipeline in-process. Proves run_once: discover -> queue -> dedupe -> job -> engine ->
-results -> job done. Also proves the learning edge: patterns:current biases EngineConfig.
-
-IMPORTANT: get_client is patched BEFORE importing lane modules so their
-`from shared.redis_client import get_client` bindings capture the fake.
+Uses the shared fakeredis (conftest) and a fake httpx transport that runs the REAL
+engine pipeline in-process. Proves run_once: discover -> queue -> dedupe -> job ->
+engine -> results -> job done; and the learning edge (patterns:current biases config).
 """
 import asyncio
-import os
 import uuid
 
-import fakeredis
+from conftest import FAKE as _fake
 
-os.environ["ENGINE_MODE"] = "MOCK"
-os.environ["DISCOVERY_TOP_N"] = "5"
-
-import shared.redis_client as rc
-
-_fake = fakeredis.FakeStrictRedis(decode_responses=True)
-rc.get_client = lambda decode=True: _fake  # patch the single connection point first
-
-# now import lane modules so they bind the patched get_client
 from shared import keys
-from shared.schemas import EngineStatus, ProcessRequest
+from shared.schemas import DiscoveryItem, EngineStatus, Patterns, ProcessRequest
 from engine import pipeline
 from discovery_orchestrator import orchestrator
 
 
-# --- fake HTTP transport: route orchestrator's httpx calls to engine in-process ---
 class _Resp:
     def __init__(self, data):
         self._data = data
@@ -64,10 +50,8 @@ class _FakeClient:
 
 
 def test_run_once_end_to_end():
-    orchestrator.httpx.Client = _FakeClient  # patch the client used in orchestrator
+    orchestrator.httpx.Client = _FakeClient
 
-    # seed learned patterns so we can prove they bias the engine config
-    from shared.schemas import Patterns
     p = Patterns(winning_topics=["ai agents and autonomous software"],
                  ideal_length_min=25.0, ideal_length_max=35.0,
                  caption_style="big-yellow", hook_templates=["The truth about {topic}"])
@@ -82,7 +66,6 @@ def test_run_once_end_to_end():
     assert result["status"] == "ok", result
     assert result["stage"] == "done", result
 
-    # contract checks
     job = _fake.hgetall(keys.job_key(result["job_id"]))
     assert job["stage"] == "done"
     assert job["engine_job_id"].startswith("eng-")
@@ -92,14 +75,6 @@ def test_run_once_end_to_end():
     sample = _fake.hgetall(keys.result_key(next(iter(clip_ids))))
     assert sample["post_id"].startswith("sandbox-")
 
-    # dedupe: same video should be skipped on a second pass
-    from shared.schemas import DiscoveryItem
+    # dedupe: same video skipped on a second pass
     item = DiscoveryItem(youtube_url=job["episode_url"], title="dup", trend_score=0.9)
-    assert orchestrator.process_item(item, p) is None  # already seen
-
-    print("PASS: Lane A discover->orchestrate->engine->results; patterns bias config; dedupe works")
-    print(f"  job={result['job_id']} stage={result['stage']} clips={len(clip_ids)}")
-
-
-if __name__ == "__main__":
-    test_run_once_end_to_end()
+    assert orchestrator.process_item(item, p) is None
