@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useCopilotAction, useCopilotReadable } from "@copilotkit/react-core";
 import {
   Search,
@@ -66,21 +66,36 @@ export default function Page() {
   const [cyclesHist, setCyclesHist] = useState<number[]>([]);
   const [queueHist, setQueueHist] = useState<number[]>([]);
   const [activeSection, setActiveSection] = useState("overview");
+  const contentRef = useRef<HTMLDivElement>(null);
   const bump = useCallback(() => setRefreshKey((k) => k + 1), []);
 
+  // Scroll within the inner content panel (reliable regardless of CopilotKit's wrapper).
   const navigate = useCallback((id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const el = document.getElementById(id);
+    const container = contentRef.current;
+    if (!el) return;
+    if (container) {
+      const top =
+        el.getBoundingClientRect().top -
+        container.getBoundingClientRect().top +
+        container.scrollTop -
+        56; // 56px = sticky header height
+      container.scrollTo({ top, behavior: "smooth" });
+    } else {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }, []);
 
-  // Section spy: highlight the nav item whose section sits near the top.
+  // Section spy — watch the same scroll container.
   useEffect(() => {
+    const container = contentRef.current;
     const obs = new IntersectionObserver(
       (entries) => {
         entries.forEach((e) => {
-          if (e.isIntersecting) setActiveSection(e.target.id);
+          if (e.isIntersecting) setActiveSection(e.target.id || "overview");
         });
       },
-      { rootMargin: "-45% 0px -50% 0px", threshold: 0 },
+      { root: container ?? null, rootMargin: "-30% 0px -55% 0px", threshold: 0 },
     );
     NAV_ITEMS.forEach(({ id }) => {
       const el = document.getElementById(id);
@@ -334,7 +349,7 @@ export default function Page() {
 
   return (
     <div className="flex min-h-screen bg-black">
-      <ScrollProgress />
+      <ScrollProgress containerRef={contentRef} />
       <CommandMenu
         running={!!running}
         onRunOnce={doRunOnce}
@@ -344,7 +359,7 @@ export default function Page() {
 
       <Sidebar active={activeSection} online={online} onNavigate={navigate} />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div ref={contentRef} className="flex h-screen min-w-0 flex-1 flex-col overflow-y-auto">
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-neutral-900 bg-black/50 px-6 backdrop-blur-md">
           <Aurora />
           <div className="flex min-w-0 flex-col leading-tight">

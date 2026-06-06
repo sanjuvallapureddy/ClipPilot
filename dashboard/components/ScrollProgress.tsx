@@ -1,9 +1,14 @@
 "use client";
+import { type RefObject } from "react";
 import { motion, useScroll, useSpring } from "framer-motion";
 
-/** 1px reading-progress bar pinned to the very top of the viewport. */
-export default function ScrollProgress() {
-  const { scrollYProgress } = useScroll();
+/** 1px reading-progress bar that tracks the passed scroll container. */
+export default function ScrollProgress({
+  containerRef,
+}: {
+  containerRef?: RefObject<HTMLElement>;
+}) {
+  const { scrollYProgress } = useScroll({ container: containerRef });
   const scaleX = useSpring(scrollYProgress, {
     stiffness: 200,
     damping: 40,
