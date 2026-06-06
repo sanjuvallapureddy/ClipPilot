@@ -3,6 +3,7 @@ import {
   youtubeConfigured,
   listAccounts,
   getActiveChannelId,
+  storeBackend,
 } from "@/lib/youtube";
 
 export const dynamic = "force-dynamic";
@@ -34,11 +35,23 @@ export async function GET() {
       connected: safe.length > 0,
       accounts: safe,
       active_channel_id: active,
+      store: await storeBackend(),
     });
   } catch (e) {
+    const msg = String((e as Error)?.message || e);
+    const redisUnavailable =
+      /MaxRetriesPerRequestError|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|Connection is closed/i.test(
+        msg,
+      );
     return Response.json(
-      { configured: true, connected: false, accounts: [], error: String(e) },
-      { status: 502 },
+      {
+        configured: true,
+        connected: false,
+        accounts: [],
+        error: msg,
+        reason: redisUnavailable ? "redis_unavailable" : "unknown",
+      },
+      { status: redisUnavailable ? 503 : 502 },
     );
   }
 }
