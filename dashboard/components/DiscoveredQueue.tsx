@@ -2,10 +2,10 @@
 import { useEffect, useState } from "react";
 import { ListVideo } from "lucide-react";
 import type { DiscoveryItem } from "@/lib/types";
-import { SectionCard, Badge } from "@/components/ui";
+import { SectionCard, Badge, Skeleton } from "@/components/ui";
 
 export default function DiscoveredQueue({ refreshKey }: { refreshKey: number }) {
-  const [items, setItems] = useState<(DiscoveryItem & { id: string })[]>([]);
+  const [items, setItems] = useState<(DiscoveryItem & { id: string })[] | null>(null);
 
   useEffect(() => {
     let on = true;
@@ -13,7 +13,7 @@ export default function DiscoveredQueue({ refreshKey }: { refreshKey: number }) 
       fetch("/api/queue")
         .then((r) => r.json())
         .then((d) => on && setItems(d.items || []))
-        .catch(() => {});
+        .catch(() => on && setItems([]));
     load();
     const t = setInterval(load, 4000);
     return () => {
@@ -26,15 +26,30 @@ export default function DiscoveredQueue({ refreshKey }: { refreshKey: number }) 
     <SectionCard
       title="Discovered Queue"
       icon={ListVideo}
-      right={<span className="font-mono text-[11px] text-neutral-500">{items.length}</span>}
+      right={
+        <span className="font-mono text-[11px] text-neutral-500">{items?.length ?? "—"}</span>
+      }
     >
-      {items.length === 0 && (
+      {items === null && (
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <Skeleton className="h-4 w-8" />
+              <div className="flex-1 space-y-1.5">
+                <Skeleton className="h-3 w-3/4" />
+                <Skeleton className="h-2.5 w-1/3" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {items?.length === 0 && (
         <div className="py-6 text-center font-mono text-xs text-neutral-600">
           No candidates yet — ask the copilot to discover.
         </div>
       )}
       <div className="flex flex-col">
-        {items.map((it) => (
+        {(items ?? []).map((it) => (
           <div
             key={it.id}
             className="flex items-center gap-3 border-b border-neutral-900/70 py-2.5 last:border-b-0"

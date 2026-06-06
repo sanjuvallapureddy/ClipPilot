@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import { BarChart3, Sparkles, Trophy, Send, Activity } from "lucide-react";
 import type { Patterns } from "@/lib/types";
-import { SectionCard, MetricCard, Badge } from "@/components/ui";
+import { SectionCard, MetricCard, Badge, Skeleton } from "@/components/ui";
 
 interface AnalyticsData {
   timeline: { engagement: number; views: number }[];
@@ -39,8 +39,16 @@ export default function Analytics({ refreshKey }: { refreshKey: number }) {
 
   if (!data)
     return (
-      <SectionCard title="Analytics" icon={BarChart3}>
-        <div className="py-6 text-center font-mono text-xs text-neutral-600">Loading…</div>
+      <SectionCard title="Analytics · Predicted Virality & Winning Patterns" icon={BarChart3}>
+        <div className="grid grid-cols-3 gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="space-y-2 rounded-lg border border-neutral-900 p-4">
+              <Skeleton className="h-2.5 w-16" />
+              <Skeleton className="h-6 w-12" />
+            </div>
+          ))}
+        </div>
+        <Skeleton className="mt-4 h-40 w-full" />
       </SectionCard>
     );
 

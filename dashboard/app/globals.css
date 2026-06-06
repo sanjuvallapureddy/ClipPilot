@@ -10,6 +10,58 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Hacker-blueprint matrix: a near-imperceptible 32px grid over the black canvas. */
+.blueprint-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Snappy, soft focus-ring physics — replaces the harsh native outline. */
+:where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: none;
+  border-color: #404040;
+  box-shadow: 0 0 0 1px #262626, 0 0 12px -2px rgba(255, 255, 255, 0.12);
+  transition: box-shadow 150ms ease-out, border-color 150ms ease-out;
+}
+
+/* Ambient skeleton shimmer — slow pulse from neutral-950 to neutral-900. */
+@keyframes skeleton-pulse {
+  0%, 100% { background-color: #0a0a0a; }
+  50% { background-color: #171717; }
+}
+.skeleton {
+  animation: skeleton-pulse 2.5s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+/* Mouse-tracking radial that illuminates a card border where the cursor is. */
+.glow-surface {
+  position: relative;
+}
+.glow-surface::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: radial-gradient(
+    180px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(255, 255, 255, 0.14),
+    transparent 60%
+  );
+  opacity: 0;
+  transition: opacity 300ms ease;
+  pointer-events: none;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.glow-surface:hover::before {
+  opacity: 1;
+}
+
 /* Minimal, near-invisible scrollbars to match the technical readout aesthetic. */
 * {
   scrollbar-width: thin;

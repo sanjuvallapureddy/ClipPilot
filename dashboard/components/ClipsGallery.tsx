@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { Flame, Play, Clock, CheckCircle2, CircleDashed } from "lucide-react";
 import type { ClipResult } from "@/lib/types";
-import { SectionCard, Badge } from "@/components/ui";
+import { SectionCard, Badge, Skeleton } from "@/components/ui";
 
 function ts(s: number) {
   const m = Math.floor(s / 60);
@@ -11,7 +11,7 @@ function ts(s: number) {
 }
 
 export default function ClipsGallery({ refreshKey }: { refreshKey: number }) {
-  const [clips, setClips] = useState<ClipResult[]>([]);
+  const [clips, setClips] = useState<ClipResult[] | null>(null);
 
   useEffect(() => {
     let on = true;
@@ -19,7 +19,7 @@ export default function ClipsGallery({ refreshKey }: { refreshKey: number }) {
       fetch("/api/clips")
         .then((r) => r.json())
         .then((d) => on && setClips(d.clips || []))
-        .catch(() => {});
+        .catch(() => on && setClips([]));
     load();
     const t = setInterval(load, 5000);
     return () => {
@@ -32,9 +32,28 @@ export default function ClipsGallery({ refreshKey }: { refreshKey: number }) {
     <SectionCard
       title="Detected Viral Moments"
       icon={Flame}
-      right={<span className="font-mono text-[11px] text-neutral-500">{clips.length}</span>}
+      right={
+        <span className="font-mono text-[11px] text-neutral-500">{clips?.length ?? "—"}</span>
+      }
     >
-      {clips.length === 0 && (
+      {clips === null && (
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="space-y-2.5 rounded-lg border border-neutral-900 p-4">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-5 w-10" />
+                <Skeleton className="h-4 w-2/3" />
+              </div>
+              <Skeleton className="h-3 w-full" />
+              <div className="flex gap-1.5">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {clips?.length === 0 && (
         <div className="py-6 text-center font-mono text-xs leading-relaxed text-neutral-600">
           No moments yet. Run the pipeline on a real episode — moments are detected
           <br className="hidden sm:block" />
@@ -42,7 +61,7 @@ export default function ClipsGallery({ refreshKey }: { refreshKey: number }) {
         </div>
       )}
       <div className="flex flex-col gap-3">
-        {clips.map((c) => {
+        {(clips ?? []).map((c) => {
           const rendered = c.render_status === "rendered";
           const posted = c.post_status === "posted";
           return (
