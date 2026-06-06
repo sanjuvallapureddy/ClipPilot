@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import "@copilotkit/react-ui/styles.css";
 import "./globals.css";
+import "@copilotkit/react-ui/styles.css";
 import { CopilotKit } from "@copilotkit/react-core";
 import { CopilotSidebar } from "@copilotkit/react-ui";
 
