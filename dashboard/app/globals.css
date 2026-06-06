@@ -185,6 +185,11 @@ body {
 .copilotKitWindow .copilotKitInput > textarea,
 .copilotKitSidebar .copilotKitInput > textarea {
   color: #1c1c1c !important;
+<<<<<<< HEAD
+  min-height: 1.5rem;
+  max-height: 9rem !important;
+=======
+>>>>>>> 60c9b8aaf7ede166b0622a2f1e3d7ffa8a68cf24
 }
 
 .copilotKitWindow .copilotKitInput > textarea::placeholder,
