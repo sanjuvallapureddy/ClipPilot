@@ -112,6 +112,99 @@ export const Button = forwardRef<
   );
 });
 
+/**
+ * Magnetic button: subtly pulls toward the cursor and springs back on leave,
+ * with a tactile press (scale 0.96). Used for primary toolbar actions.
+ */
+export const MagneticButton = forwardRef<
+  HTMLButtonElement,
+  {
+    variant?: ButtonVariant;
+    className?: string;
+    strength?: number;
+    children: ReactNode;
+  } & React.ButtonHTMLAttributes<HTMLButtonElement>
+>(function MagneticButton(
+  { variant = "primary", className = "", strength = 0.35, children, ...props },
+  ref,
+) {
+  const x = useSpring(0, { stiffness: 350, damping: 18 });
+  const y = useSpring(0, { stiffness: 350, damping: 18 });
+  const localRef = useRef<HTMLButtonElement | null>(null);
+
+  const onMove = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const el = localRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    x.set((e.clientX - (r.left + r.width / 2)) * strength);
+    y.set((e.clientY - (r.top + r.height / 2)) * strength);
+  };
+  const reset = () => {
+    x.set(0);
+    y.set(0);
+  };
+
+  return (
+    <motion.button
+      ref={(node) => {
+        localRef.current = node;
+        if (typeof ref === "function") ref(node);
+        else if (ref) (ref as React.MutableRefObject<HTMLButtonElement | null>).current = node;
+      }}
+      style={{ x, y }}
+      onMouseMove={onMove}
+      onMouseLeave={reset}
+      whileTap={{ scale: 0.96 }}
+      className={`${buttonBase} ${buttonVariants[variant]} ${className}`}
+      {...(props as any)}
+    >
+      {children}
+    </motion.button>
+  );
+});
+
+/** Per-digit odometer roll, layered on top of value changes (mono digits). */
+function OdometerDigit({ digit }: { digit: number }) {
+  return (
+    <span
+      className="relative inline-block overflow-hidden align-baseline"
+      style={{ height: "1em", width: "1ch", lineHeight: 1 }}
+    >
+      <motion.span
+        className="absolute left-0 top-0 flex flex-col items-center"
+        animate={{ y: `${-digit}em` }}
+        transition={{ type: "spring", stiffness: 320, damping: 30 }}
+      >
+        {Array.from({ length: 10 }).map((_, d) => (
+          <span key={d} style={{ height: "1em", lineHeight: 1 }}>
+            {d}
+          </span>
+        ))}
+      </motion.span>
+      <span className="invisible" style={{ lineHeight: 1 }}>
+        0
+      </span>
+    </span>
+  );
+}
+
+export function OdometerNumber({ value }: { value: number }) {
+  const str = Math.round(Number.isFinite(value) ? value : 0).toLocaleString();
+  return (
+    <span className="inline-flex tabular-nums" style={{ lineHeight: 1 }}>
+      {str.split("").map((ch, i) =>
+        /\d/.test(ch) ? (
+          <OdometerDigit key={i} digit={Number(ch)} />
+        ) : (
+          <span key={i} className="inline-block">
+            {ch}
+          </span>
+        ),
+      )}
+    </span>
+  );
+}
+
 export function Card({
   className = "",
   children,
@@ -336,13 +429,15 @@ const ACTIVE_STAGES: Stage[] = ["fetching", "transcribing", "analyzing"];
 
 export function StagePill({ stage }: { stage: Stage }) {
   const meta = stageMeta[stage] ?? stageMeta.queued;
-  const Icon = ACTIVE_STAGES.includes(stage) ? Loader2 : meta.icon;
-  const spin = ACTIVE_STAGES.includes(stage);
+  const active = ACTIVE_STAGES.includes(stage);
+  const Icon = active ? Loader2 : meta.icon;
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-md border bg-neutral-950 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide ${meta.cls}`}
+      className={`relative inline-flex items-center gap-1 overflow-hidden rounded-md border bg-neutral-950 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide ${meta.cls} ${
+        active ? "stage-beam" : ""
+      }`}
     >
-      <Icon size={11} className={spin ? "animate-spin" : ""} />
+      <Icon size={11} className={active ? "animate-spin" : ""} />
       {stage}
     </span>
   );

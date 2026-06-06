@@ -31,9 +31,78 @@ body {
   0%, 100% { background-color: #0a0a0a; }
   50% { background-color: #171717; }
 }
+@keyframes skeleton-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
 .skeleton {
+  position: relative;
+  overflow: hidden;
   animation: skeleton-pulse 2.5s ease-in-out infinite;
   border-radius: 6px;
+}
+/* A light sweep passing over the dark glass surface. */
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.05) 45%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.05) 55%,
+    transparent
+  );
+  transform: translateX(-100%);
+  animation: skeleton-sweep 2s ease-in-out infinite;
+}
+
+/* One-shot emerald ring pulse for a freshly posted clip. */
+@keyframes success-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+  70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+.success-pulse {
+  animation: success-pulse 1.6s ease-out 2;
+  border-color: rgba(16, 185, 129, 0.4) !important;
+}
+
+/* Drifting aurora blobs behind the header — ultra low opacity, stays true-black. */
+@keyframes aurora-drift {
+  0%   { transform: translate3d(-6%, -4%, 0) scale(1); }
+  50%  { transform: translate3d(6%, 4%, 0) scale(1.15); }
+  100% { transform: translate3d(-6%, -4%, 0) scale(1); }
+}
+.aurora-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(60px);
+  will-change: transform;
+  animation-name: aurora-drift;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+
+/* Light beam traveling across an actively-processing stage pill. */
+@keyframes stage-beam {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(220%); }
+}
+.stage-beam::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    rgba(255, 255, 255, 0.18) 50%,
+    transparent
+  );
+  transform: translateX(-120%);
+  animation: stage-beam 1.6s ease-in-out infinite;
+  pointer-events: none;
 }
 
 /* Mouse-tracking radial that illuminates a card border where the cursor is. */

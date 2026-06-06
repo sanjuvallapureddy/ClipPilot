@@ -1,8 +1,7 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useCopilotAction, useCopilotReadable } from "@copilotkit/react-core";
 import {
-  Clapperboard,
   Search,
   Globe,
   Play,
@@ -14,23 +13,26 @@ import {
   Loader2,
   BarChart3,
   Trophy,
-  Command as CommandIcon,
 } from "lucide-react";
 import LivePipeline from "@/components/LivePipeline";
 import DiscoveredQueue from "@/components/DiscoveredQueue";
 import ClipsGallery from "@/components/ClipsGallery";
 import Analytics from "@/components/Analytics";
 import ActivityTicker from "@/components/ActivityTicker";
-import CommandMenu, { openCommandMenu } from "@/components/CommandMenu";
+import CommandMenu from "@/components/CommandMenu";
 import YouTubeConnect from "@/components/YouTubeConnect";
+import ManualUpload from "@/components/ManualUpload";
+import Sidebar, { NAV_ITEMS } from "@/components/Sidebar";
+import Aurora from "@/components/Aurora";
+import ScrollProgress from "@/components/ScrollProgress";
 import {
-  Button,
+  MagneticButton,
   Card,
   GlowMetricCard,
   Badge,
   StagePill,
   Tooltip,
-  AnimatedNumber,
+  OdometerNumber,
   Reveal,
 } from "@/components/ui";
 import { toast, dismiss } from "@/components/toast";
@@ -64,7 +66,44 @@ export default function Page() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [cyclesHist, setCyclesHist] = useState<number[]>([]);
   const [queueHist, setQueueHist] = useState<number[]>([]);
+  const [activeSection, setActiveSection] = useState("overview");
+  const contentRef = useRef<HTMLDivElement>(null);
   const bump = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  // Scroll within the inner content panel (reliable regardless of CopilotKit's wrapper).
+  const navigate = useCallback((id: string) => {
+    const el = document.getElementById(id);
+    const container = contentRef.current;
+    if (!el) return;
+    if (container) {
+      const top =
+        el.getBoundingClientRect().top -
+        container.getBoundingClientRect().top +
+        container.scrollTop -
+        56; // 56px = sticky header height
+      container.scrollTo({ top, behavior: "smooth" });
+    } else {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
+
+  // Section spy — watch the same scroll container.
+  useEffect(() => {
+    const container = contentRef.current;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) setActiveSection(e.target.id || "overview");
+        });
+      },
+      { root: container ?? null, rootMargin: "-30% 0px -55% 0px", threshold: 0 },
+    );
+    NAV_ITEMS.forEach(({ id }) => {
+      const el = document.getElementById(id);
+      if (el) obs.observe(el);
+    });
+    return () => obs.disconnect();
+  }, []);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -375,8 +414,11 @@ export default function Page() {
     ),
   });
 
+  const activeLabel = NAV_ITEMS.find((n) => n.id === activeSection)?.label ?? "Overview";
+
   return (
-    <div className="flex min-h-screen flex-col bg-black">
+    <div className="flex min-h-screen bg-black">
+      <ScrollProgress containerRef={contentRef} />
       <CommandMenu
         running={!!running}
         onRunOnce={doRunOnce}
@@ -384,77 +426,61 @@ export default function Page() {
         onToggleAuto={doToggleAuto}
       />
 
-      <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-neutral-900 bg-black/50 px-6 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md border border-neutral-800 bg-neutral-950">
-            <Clapperboard size={16} className="text-neutral-100" />
-          </div>
-          <div className="flex flex-col leading-tight">
+      <Sidebar active={activeSection} online={online} onNavigate={navigate} />
+
+      <div ref={contentRef} className="flex h-screen min-w-0 flex-1 flex-col overflow-y-auto">
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-neutral-900 bg-black/50 px-6 backdrop-blur-md">
+          <Aurora />
+          <div className="flex min-w-0 flex-col leading-tight">
             <h1 className="text-sm font-semibold tracking-tight text-neutral-100">
-              ClipPilot
-              <span className="ml-2 text-neutral-600">Mission Control</span>
+              {activeLabel}
             </h1>
-            <span className="text-[11px] text-neutral-500">
+            <span className="truncate text-[11px] text-neutral-500">
               autonomous podcast → shorts factory
             </span>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <HealthChip online={online} />
+          <div className="flex items-center gap-2">
+            <YouTubeConnect />
 
-          <Tooltip label="Command menu" hotkey="⌘K">
-            <button
-              onClick={openCommandMenu}
-              className="hidden items-center gap-1.5 rounded-md border border-neutral-900 bg-transparent px-2 py-1.5 text-neutral-500 transition-colors hover:border-neutral-800 hover:text-neutral-300 sm:flex"
-            >
-              <CommandIcon size={13} />
-              <span className="font-mono text-[11px]">K</span>
-            </button>
-          </Tooltip>
-
-          <div className="mx-1 hidden h-5 w-px bg-neutral-900 sm:block" />
-
-          <YouTubeConnect />
-
-          <Tooltip label="Discover podcasts" hotkey="D">
-            <Button variant="ghost" disabled={busy} onClick={doDiscover}>
-              <Search size={14} />
-              Discover
-            </Button>
-          </Tooltip>
-          <Tooltip label="Research trending episodes">
-            <Button variant="ghost" disabled={busy} onClick={doResearch}>
-              <Globe size={14} />
-              Research
-            </Button>
-          </Tooltip>
-          <Tooltip label="Run one cycle" hotkey="R">
-            <Button variant="primary" disabled={busy} onClick={doRunOnce}>
-              {busy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
-              {busy ? "Running" : "Run Once"}
-            </Button>
-          </Tooltip>
-          {running ? (
-            <Tooltip label="Stop autonomous loop" hotkey="A">
-              <Button variant="danger" onClick={doToggleAuto}>
-                <Square size={14} />
-                Stop Auto
-              </Button>
+            <Tooltip label="Discover podcasts" hotkey="D">
+              <MagneticButton variant="ghost" disabled={busy} onClick={doDiscover}>
+                <Search size={14} />
+                Discover
+              </MagneticButton>
             </Tooltip>
-          ) : (
-            <Tooltip label="Start autonomous loop" hotkey="A">
-              <Button variant="ghost" onClick={doToggleAuto}>
-                <Power size={14} />
-                Start Auto
-              </Button>
+            <Tooltip label="Research trending episodes">
+              <MagneticButton variant="ghost" disabled={busy} onClick={doResearch}>
+                <Globe size={14} />
+                Research
+              </MagneticButton>
             </Tooltip>
-          )}
-        </div>
-      </header>
+            <Tooltip label="Run one cycle" hotkey="R">
+              <MagneticButton variant="primary" disabled={busy} onClick={doRunOnce}>
+                {busy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                {busy ? "Running" : "Run Once"}
+              </MagneticButton>
+            </Tooltip>
+            {running ? (
+              <Tooltip label="Stop autonomous loop" hotkey="A">
+                <MagneticButton variant="danger" onClick={doToggleAuto}>
+                  <Square size={14} />
+                  Stop Auto
+                </MagneticButton>
+              </Tooltip>
+            ) : (
+              <Tooltip label="Start autonomous loop" hotkey="A">
+                <MagneticButton variant="ghost" onClick={doToggleAuto}>
+                  <Power size={14} />
+                  Start Auto
+                </MagneticButton>
+              </Tooltip>
+            )}
+          </div>
+        </header>
 
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-6 py-6">
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-6 py-6">
+          <section id="overview" className="grid scroll-mt-20 grid-cols-2 gap-3 lg:grid-cols-4">
           <Reveal delay={0}>
             <GlowMetricCard
               title="Status"
@@ -474,7 +500,7 @@ export default function Page() {
               title="Cycles Run"
               variant="blue"
               icon={Repeat}
-              value={<AnimatedNumber value={Number(status?.cycles ?? 0)} />}
+              value={<OdometerNumber value={Number(status?.cycles ?? 0)} />}
               description="total"
               sparkline={cyclesHist}
             />
@@ -484,7 +510,7 @@ export default function Page() {
               title="Queue Pending"
               variant="cyan"
               icon={ListVideo}
-              value={<AnimatedNumber value={Number(status?.queue_pending ?? 0)} />}
+              value={<OdometerNumber value={Number(status?.queue_pending ?? 0)} />}
               description="candidates"
               sparkline={queueHist}
             />
@@ -521,42 +547,18 @@ export default function Page() {
             </Reveal>
           </div>
           <div className="flex flex-col gap-4">
+            <Reveal className="scroll-mt-20">
+              <ManualUpload />
+            </Reveal>
             <Reveal id="discovered-queue" className="scroll-mt-20">
               <DiscoveredQueue refreshKey={refreshKey} />
             </Reveal>
           </div>
         </section>
-      </main>
+        </main>
 
-      <ActivityTicker />
-    </div>
-  );
-}
-
-function HealthChip({ online }: { online: boolean | null }) {
-  const label =
-    online === null ? "connecting" : online ? "orchestrator" : "orchestrator offline";
-  const dotCls =
-    online === null ? "bg-neutral-600" : online ? "bg-emerald-400" : "bg-rose-500";
-  const textCls =
-    online === null ? "text-neutral-500" : online ? "text-neutral-400" : "text-rose-400/90";
-  return (
-    <Tooltip
-      label={
-        online ? "Lane A orchestrator reachable" : "Lane A unreachable — start the orchestrator"
-      }
-    >
-      <div className="hidden items-center gap-1.5 rounded-md border border-neutral-900 px-2 py-1.5 sm:flex">
-        <span className="relative flex h-1.5 w-1.5">
-          {online && (
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-          )}
-          <span className={`relative inline-flex h-1.5 w-1.5 rounded-full ${dotCls}`} />
-        </span>
-        <span className={`font-mono text-[10px] uppercase tracking-wide ${textCls}`}>
-          {label}
-        </span>
+        <ActivityTicker />
       </div>
-    </Tooltip>
+    </div>
   );
 }
