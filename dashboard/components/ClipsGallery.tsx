@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import {
   Flame,
   Play,
@@ -10,7 +11,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 import type { ClipResult } from "@/lib/types";
-import { SectionCard, Badge, YouTubeGlyph } from "@/components/ui";
+import { SectionCard, Badge, Skeleton, YouTubeGlyph } from "@/components/ui";
+import ClipDrawer from "@/components/ClipDrawer";
 
 function ts(s: number) {
   const m = Math.floor(s / 60);
@@ -19,15 +21,46 @@ function ts(s: number) {
 }
 
 export default function ClipsGallery({ refreshKey }: { refreshKey: number }) {
-  const [clips, setClips] = useState<ClipResult[]>([]);
+  const [clips, setClips] = useState<ClipResult[] | null>(null);
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pulsing, setPulsing] = useState<Set<string>>(new Set());
+  const postedSeen = useRef<Set<string> | null>(null);
+
+  // Pulse a clip's card once, the moment it transitions to "posted".
+  useEffect(() => {
+    if (!clips) return;
+    const postedNow = clips
+      .filter((c) => c.post_status === "posted")
+      .map((c) => c.clip_id);
+    if (postedSeen.current === null) {
+      // First data arrival: acknowledge existing posts without celebrating.
+      postedSeen.current = new Set(postedNow);
+      return;
+    }
+    const fresh = postedNow.filter((id) => !postedSeen.current!.has(id));
+    if (fresh.length) {
+      setPulsing((prev) => new Set([...prev, ...fresh]));
+      fresh.forEach((id) => postedSeen.current!.add(id));
+      const t = setTimeout(() => {
+        setPulsing((prev) => {
+          const next = new Set(prev);
+          fresh.forEach((id) => next.delete(id));
+          return next;
+        });
+      }, 3500);
+      return () => clearTimeout(t);
+    }
+  }, [clips]);
+
+  const selected = clips?.find((c) => c.clip_id === selectedId) ?? null;
 
   const load = () =>
     fetch("/api/clips")
       .then((r) => r.json())
       .then((d) => setClips(d.clips || []))
-      .catch(() => {});
+      .catch(() => setClips([]));
 
   useEffect(() => {
     let on = true;
@@ -63,12 +96,32 @@ export default function ClipsGallery({ refreshKey }: { refreshKey: number }) {
   };
 
   return (
+    <>
     <SectionCard
       title="Detected Viral Moments"
       icon={Flame}
-      right={<span className="font-mono text-[11px] text-neutral-500">{clips.length}</span>}
+      right={
+        <span className="font-mono text-[11px] text-neutral-500">{clips?.length ?? "—"}</span>
+      }
     >
-      {clips.length === 0 && (
+      {clips === null && (
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="space-y-2.5 rounded-lg border border-neutral-900 p-4">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-5 w-10" />
+                <Skeleton className="h-4 w-2/3" />
+              </div>
+              <Skeleton className="h-3 w-full" />
+              <div className="flex gap-1.5">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {clips?.length === 0 && (
         <div className="py-6 text-center font-mono text-xs leading-relaxed text-neutral-600">
           No moments yet. Run the pipeline on a real episode — moments are detected
           <br className="hidden sm:block" />
@@ -76,13 +129,24 @@ export default function ClipsGallery({ refreshKey }: { refreshKey: number }) {
         </div>
       )}
       <div className="flex flex-col gap-3">
-        {clips.map((c) => {
+        {(clips ?? []).map((c) => {
           const rendered = c.render_status === "rendered";
           const posted = c.post_status === "posted";
           return (
-            <div
+            <motion.div
               key={c.clip_id}
-              className="group rounded-lg border border-neutral-900 bg-neutral-950/30 p-4 transition-all duration-300 hover:border-neutral-800 hover:bg-neutral-950/60"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              onClick={() => setSelectedId(c.clip_id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setSelectedId(c.clip_id);
+              }}
+              className={`group cursor-pointer rounded-lg border border-neutral-900 bg-neutral-950/30 p-4 transition-all duration-300 hover:border-neutral-800 hover:bg-neutral-950/60 ${
+                pulsing.has(c.clip_id) ? "success-pulse" : ""
+              }`}
             >
               <div className="flex items-baseline gap-3">
                 <span className="font-mono text-lg font-semibold tabular-nums text-emerald-400">
@@ -113,6 +177,7 @@ export default function ClipsGallery({ refreshKey }: { refreshKey: number }) {
                     href={`${c.source_url}&t=${Math.floor(c.start_seconds)}s`}
                     target="_blank"
                     rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
                     className="inline-flex items-center gap-1 rounded-md border border-neutral-800 bg-neutral-950 px-2 py-0.5 font-mono text-[10px] text-neutral-400 transition-colors hover:border-neutral-700 hover:text-neutral-100"
                   >
                     <Play size={10} />
@@ -154,6 +219,7 @@ export default function ClipsGallery({ refreshKey }: { refreshKey: number }) {
                     href={`https://www.youtube.com/watch?v=${c.post_id}`}
                     target="_blank"
                     rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
                     className="inline-flex items-center gap-1.5 rounded-md border border-emerald-900/60 bg-emerald-950/20 px-2.5 py-1 font-mono text-[11px] text-emerald-300 transition-colors hover:border-emerald-800"
                   >
                     <YouTubeGlyph size={12} className="text-red-500" />
@@ -162,7 +228,10 @@ export default function ClipsGallery({ refreshKey }: { refreshKey: number }) {
                   </a>
                 ) : (
                   <button
-                    onClick={() => upload(c.clip_id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      upload(c.clip_id);
+                    }}
                     disabled={uploading[c.clip_id]}
                     className="inline-flex items-center gap-1.5 rounded-md border border-neutral-800 bg-neutral-950 px-2.5 py-1 font-mono text-[11px] text-neutral-300 transition-colors hover:border-red-900/60 hover:text-white disabled:opacity-50"
                   >
@@ -180,10 +249,19 @@ export default function ClipsGallery({ refreshKey }: { refreshKey: number }) {
                   </span>
                 )}
               </div>
-            </div>
+            </motion.div>
           );
         })}
       </div>
     </SectionCard>
+
+    <ClipDrawer
+      clip={selected}
+      onClose={() => setSelectedId(null)}
+      onUpload={upload}
+      uploading={selected ? !!uploading[selected.clip_id] : false}
+      error={selected ? errors[selected.clip_id] : undefined}
+    />
+    </>
   );
 }
