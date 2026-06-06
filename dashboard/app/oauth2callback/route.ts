@@ -15,6 +15,18 @@ function back(params: Record<string, string>) {
   );
 }
 
+function reasonFromError(e: unknown): string {
+  const msg = String((e as Error)?.message || e);
+  if (
+    /MaxRetriesPerRequestError|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|Connection is closed/i.test(
+      msg,
+    )
+  ) {
+    return "redis_unavailable";
+  }
+  return msg.slice(0, 120);
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
@@ -88,6 +100,6 @@ export async function GET(req: Request) {
     await saveAccount(account);
     return back({ youtube: "connected", channel: account.channel_title });
   } catch (e) {
-    return back({ youtube: "error", reason: String(e).slice(0, 120) });
+    return back({ youtube: "error", reason: reasonFromError(e) });
   }
 }

@@ -16,6 +16,8 @@ interface Status {
   connected: boolean;
   accounts: Account[];
   active_channel_id: string | null;
+  reason?: string;
+  error?: string;
 }
 
 // Friendly copy for the ?youtube=error&reason=... values the OAuth callback can return.
@@ -28,6 +30,8 @@ function errorMessage(reason: string): string {
     return "Security check failed (state mismatch). Please try connecting again.";
   if (reason === "missing_code")
     return "Google didn't return an authorization code. Please try again.";
+  if (reason === "redis_unavailable")
+    return "Connected to Google, but ClipPilot couldn't save the account because Redis is unavailable. Start Redis and reconnect.";
   return `Couldn't connect: ${reason}`;
 }
 
@@ -58,6 +62,15 @@ export default function YouTubeConnect() {
     const t = setInterval(load, 15000);
     return () => clearInterval(t);
   }, [load]);
+
+  useEffect(() => {
+    if (!status) return;
+    if (status.reason === "redis_unavailable") {
+      setError(
+        "YouTube is configured, but Redis is unavailable. Start Redis and reconnect your account.",
+      );
+    }
+  }, [status]);
 
   const connect = () => {
     setError(null);

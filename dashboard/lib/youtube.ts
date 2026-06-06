@@ -1,10 +1,36 @@
-// Server-only YouTube OAuth + token store (Lane D add-on).
+// Server-only YouTube OAuth (Lane D add-on).
 // Direct upload to YouTube via the official Google client. Multiple Google accounts can
 // be connected; the "active" one is the upload target and can be switched from the UI.
+// Account/token persistence lives in ./youtube-store (Redis with a file fallback) so the
+// flow works even when Redis isn't running.
 import fs from "fs";
 import path from "path";
 import { google } from "googleapis";
-import { redis } from "@/lib/redis";
+import {
+  listAccounts,
+  getAccount,
+  getActiveChannelId,
+  getActiveAccount,
+  setActiveChannel,
+  saveAccount,
+  removeAccount,
+  storeBackend,
+  patchAccount,
+  type YouTubeAccount,
+} from "@/lib/youtube-store";
+
+// Re-export the storage API so existing importers of "@/lib/youtube" keep working.
+export {
+  listAccounts,
+  getAccount,
+  getActiveChannelId,
+  getActiveAccount,
+  setActiveChannel,
+  saveAccount,
+  removeAccount,
+  storeBackend,
+};
+export type { YouTubeAccount };
 
 // Use the OAuth2 client type that ships with the googleapis bundle so it matches the
 // `auth` parameter google.youtube()/google.oauth2() expect (avoids duplicate-package
@@ -81,22 +107,6 @@ export function youtubeConfigured(): boolean {
   return Boolean(c.clientId && c.clientSecret);
 }
 
-// --- Redis key contract for connected accounts ---
-const ACTIVE_KEY = "youtube:active"; // string: channel_id of the active account
-const ACCOUNTS_SET = "youtube:accounts"; // set of channel_ids
-const accountKey = (channelId: string) => `youtube:account:${channelId}`;
-
-export interface YouTubeAccount {
-  channel_id: string;
-  channel_title: string;
-  thumbnail: string;
-  email: string;
-  refresh_token: string;
-  access_token: string;
-  expiry_date: string; // ms epoch as string
-  connected_at: string;
-}
-
 export function newOAuthClient(): OAuth2Client {
   const c = loadClientConfig();
   return new google.auth.OAuth2(c.clientId, c.clientSecret, c.redirectUri);
@@ -114,72 +124,14 @@ export function consentUrl(state: string): string {
   });
 }
 
-export async function listAccounts(): Promise<YouTubeAccount[]> {
-  const r = redis();
-  const ids = await r.smembers(ACCOUNTS_SET);
-  const out: YouTubeAccount[] = [];
-  for (const id of ids) {
-    const h = await r.hgetall(accountKey(id));
-    if (h && Object.keys(h).length) out.push(h as unknown as YouTubeAccount);
-  }
-  return out;
-}
-
-export async function getActiveChannelId(): Promise<string | null> {
-  return (await redis().get(ACTIVE_KEY)) || null;
-}
-
-export async function getActiveAccount(): Promise<YouTubeAccount | null> {
-  const id = await getActiveChannelId();
-  if (!id) return null;
-  const h = await redis().hgetall(accountKey(id));
-  return h && Object.keys(h).length ? (h as unknown as YouTubeAccount) : null;
-}
-
-export async function setActiveChannel(channelId: string): Promise<boolean> {
-  const r = redis();
-  if (!(await r.sismember(ACCOUNTS_SET, channelId))) return false;
-  await r.set(ACTIVE_KEY, channelId);
-  return true;
-}
-
-export async function saveAccount(acct: YouTubeAccount): Promise<void> {
-  const r = redis();
-  const key = accountKey(acct.channel_id);
-  // Re-auth sometimes returns no refresh_token (Google only re-issues it on the first
-  // consent). Never clobber a previously stored refresh_token with an empty one, or we'd
-  // permanently lose the ability to refresh access tokens for this account.
-  const record: YouTubeAccount = { ...acct };
-  if (!record.refresh_token) {
-    const existing = await r.hget(key, "refresh_token");
-    if (existing) record.refresh_token = existing;
-  }
-  await r.hset(key, { ...record });
-  await r.sadd(ACCOUNTS_SET, acct.channel_id);
-  // Newly connected / re-authed account becomes the active upload target.
-  await r.set(ACTIVE_KEY, acct.channel_id);
-}
-
-export async function removeAccount(channelId: string): Promise<void> {
-  const r = redis();
-  await r.del(accountKey(channelId));
-  await r.srem(ACCOUNTS_SET, channelId);
-  if ((await r.get(ACTIVE_KEY)) === channelId) {
-    const rest = await r.smembers(ACCOUNTS_SET);
-    if (rest[0]) await r.set(ACTIVE_KEY, rest[0]);
-    else await r.del(ACTIVE_KEY);
-  }
-}
-
 // Build an authorized client for a specific connected account, auto-persisting any
 // refreshed token. Throws if the account exists but has no refresh_token (needs re-auth).
 export async function authedClientFor(channelId: string): Promise<{
   client: OAuth2Client;
   account: YouTubeAccount;
 } | null> {
-  const h = await redis().hgetall(accountKey(channelId));
-  if (!h || !Object.keys(h).length) return null;
-  const account = h as unknown as YouTubeAccount;
+  const account = await getAccount(channelId);
+  if (!account) return null;
 
   const client = newOAuthClient();
   client.setCredentials({
@@ -194,9 +146,7 @@ export async function authedClientFor(channelId: string): Promise<{
     if (tokens.access_token) patch.access_token = tokens.access_token;
     if (tokens.expiry_date) patch.expiry_date = String(tokens.expiry_date);
     if (tokens.refresh_token) patch.refresh_token = tokens.refresh_token;
-    if (Object.keys(patch).length) {
-      redis().hset(accountKey(account.channel_id), patch).catch(() => {});
-    }
+    patchAccount(account.channel_id, patch).catch(() => {});
   });
 
   // Proactively refresh if the access token is missing or expires within 60s. The client

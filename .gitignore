@@ -1,5 +1,10 @@
-.env
+# NOTE: .env is intentionally committed so teammates get all config/keys on pull.
+# This is ONLY acceptable because this repo is PRIVATE. If it ever becomes public,
+# remove .env from git history and rotate every key in it immediately.
 client_secret*.json
+# Per-machine local overrides (never committed):
+.env.local
+.env.*.local
 __pycache__/
 *.pyc
 .venv/
