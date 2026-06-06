@@ -18,6 +18,7 @@ import LivePipeline from "@/components/LivePipeline";
 import DiscoveredQueue from "@/components/DiscoveredQueue";
 import ClipsGallery from "@/components/ClipsGallery";
 import Analytics from "@/components/Analytics";
+import YouTubeConnect from "@/components/YouTubeConnect";
 import { Button, Card, GlowMetricCard, Badge, StagePill } from "@/components/ui";
 import type { Stage } from "@/lib/types";
 
@@ -218,6 +219,7 @@ export default function Page() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <YouTubeConnect />
           <Button
             variant="ghost"
             disabled={busy}
