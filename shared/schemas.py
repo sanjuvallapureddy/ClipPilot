@@ -204,6 +204,9 @@ class ProcessRequest(BaseModel):
     config: EngineConfig = Field(default_factory=EngineConfig)
     title: str = ""
     topic: str = ""
+    # Optional: caller's clippilot job_id so the engine can advance jobs:{id}
+    # stages directly (honors "A & C write jobs" in §4).
+    clippilot_job_id: str = ""
 
 
 class ProcessResponse(BaseModel):
