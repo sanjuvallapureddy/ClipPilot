@@ -8,9 +8,10 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { motion } from "framer-motion";
 import { BarChart3, Sparkles, Trophy, Send, Activity } from "lucide-react";
 import type { Patterns } from "@/lib/types";
-import { SectionCard, MetricCard, Badge, Skeleton } from "@/components/ui";
+import { SectionCard, MetricCard, Badge, Skeleton, AnimatedNumber } from "@/components/ui";
 
 interface AnalyticsData {
   timeline: { engagement: number; views: number }[];
@@ -61,14 +62,24 @@ export default function Analytics({ refreshKey }: { refreshKey: number }) {
   return (
     <SectionCard title="Analytics · Predicted Virality & Winning Patterns" icon={BarChart3}>
       <div className="grid grid-cols-3 gap-3">
-        <MetricCard title="Moments" icon={Sparkles} value={data.totals.moments} description="detected" />
+        <MetricCard
+          title="Moments"
+          icon={Sparkles}
+          value={<AnimatedNumber value={data.totals.moments} />}
+          description="detected"
+        />
         <MetricCard
           title="Avg Virality"
           icon={Activity}
           value={(data.totals.avg_virality || 0).toFixed(2)}
           description="predicted"
         />
-        <MetricCard title="Posted" icon={Send} value={data.totals.posted} description="live" />
+        <MetricCard
+          title="Posted"
+          icon={Send}
+          value={<AnimatedNumber value={data.totals.posted} />}
+          description="live"
+        />
       </div>
 
       <p className="mt-4 font-mono text-[10px] leading-relaxed text-neutral-600">
@@ -105,6 +116,11 @@ export default function Analytics({ refreshKey }: { refreshKey: number }) {
               stroke="#f5f5f5"
               fill="url(#engagementFill)"
               strokeWidth={1.5}
+              isAnimationActive
+              animationDuration={1100}
+              animationEasing="ease-out"
+              activeDot={{ r: 3, fill: "#f5f5f5", stroke: "#000", strokeWidth: 1 }}
+              dot={false}
             />
           </AreaChart>
         </ResponsiveContainer>
@@ -114,8 +130,14 @@ export default function Analytics({ refreshKey }: { refreshKey: number }) {
         Top Topics
       </h3>
       <div className="flex flex-col gap-2.5">
-        {data.topicStats.slice(0, 5).map((t) => (
-          <div key={t.topic}>
+        {data.topicStats.slice(0, 5).map((t, i) => (
+          <motion.div
+            key={t.topic}
+            initial={{ opacity: 0, x: -8 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, margin: "-20px" }}
+            transition={{ duration: 0.4, delay: i * 0.05, ease: [0.22, 1, 0.36, 1] }}
+          >
             <div className="mb-1 flex items-center justify-between text-xs">
               <span className="text-neutral-300">{t.topic}</span>
               <span className="font-mono tabular-nums text-emerald-400">
@@ -123,12 +145,15 @@ export default function Analytics({ refreshKey }: { refreshKey: number }) {
               </span>
             </div>
             <div className="h-1 overflow-hidden rounded-full bg-neutral-900">
-              <span
+              <motion.span
                 className="block h-full rounded-full bg-neutral-100"
-                style={{ width: `${Math.min(100, t.avg_engagement * 100)}%` }}
+                initial={{ width: 0 }}
+                whileInView={{ width: `${Math.min(100, t.avg_engagement * 100)}%` }}
+                viewport={{ once: true, margin: "-20px" }}
+                transition={{ duration: 0.9, delay: i * 0.05 + 0.1, ease: [0.22, 1, 0.36, 1] }}
               />
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
 

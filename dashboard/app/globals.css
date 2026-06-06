@@ -54,12 +54,31 @@ body {
   opacity: 0;
   transition: opacity 300ms ease;
   pointer-events: none;
+  /* Border-only reveal: mask out the interior so only the 1px frame glows. */
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   mask-composite: exclude;
 }
 .glow-surface:hover::before {
   opacity: 1;
+}
+
+/* Scroll/entrance reveal fallback (used when JS hydration is delayed). */
+@keyframes fade-up {
+  from { opacity: 0; transform: translate3d(0, 10px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+/* Respect users who prefer fewer animations. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
 
 /* Minimal, near-invisible scrollbars to match the technical readout aesthetic. */

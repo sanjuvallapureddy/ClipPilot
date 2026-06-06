@@ -30,6 +30,7 @@ import {
   StagePill,
   Tooltip,
   AnimatedNumber,
+  Reveal,
 } from "@/components/ui";
 import { toast, dismiss } from "@/components/toast";
 import type { Stage } from "@/lib/types";
@@ -379,67 +380,75 @@ export default function Page() {
 
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-6 py-6">
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <GlowMetricCard
-            title="Status"
-            variant="red"
-            dot
-            pulse={!!running}
-            value={
-              <span className={running ? "text-neutral-100" : "text-rose-400/90"}>
-                {running ? "ON" : "OFF"}
-              </span>
-            }
-            description="autonomous loop"
-          />
-          <GlowMetricCard
-            title="Cycles Run"
-            variant="blue"
-            icon={Repeat}
-            value={<AnimatedNumber value={Number(status?.cycles ?? 0)} />}
-            description="total"
-            sparkline={cyclesHist}
-          />
-          <GlowMetricCard
-            title="Queue Pending"
-            variant="cyan"
-            icon={ListVideo}
-            value={<AnimatedNumber value={Number(status?.queue_pending ?? 0)} />}
-            description="candidates"
-            sparkline={queueHist}
-          />
-          <GlowMetricCard
-            title="Current Topic"
-            variant="amber"
-            icon={Hash}
-            value={
-              <span
-                className={`truncate text-base ${
-                  status?.topic ? "text-amber-400/90" : "text-neutral-100"
-                }`}
-              >
-                {status?.topic ?? "—"}
-              </span>
-            }
-          />
+          <Reveal delay={0}>
+            <GlowMetricCard
+              title="Status"
+              variant="red"
+              dot
+              pulse={!!running}
+              value={
+                <span className={running ? "text-neutral-100" : "text-rose-400/90"}>
+                  {running ? "ON" : "OFF"}
+                </span>
+              }
+              description="autonomous loop"
+            />
+          </Reveal>
+          <Reveal delay={0.06}>
+            <GlowMetricCard
+              title="Cycles Run"
+              variant="blue"
+              icon={Repeat}
+              value={<AnimatedNumber value={Number(status?.cycles ?? 0)} />}
+              description="total"
+              sparkline={cyclesHist}
+            />
+          </Reveal>
+          <Reveal delay={0.12}>
+            <GlowMetricCard
+              title="Queue Pending"
+              variant="cyan"
+              icon={ListVideo}
+              value={<AnimatedNumber value={Number(status?.queue_pending ?? 0)} />}
+              description="candidates"
+              sparkline={queueHist}
+            />
+          </Reveal>
+          <Reveal delay={0.18}>
+            <GlowMetricCard
+              title="Current Topic"
+              variant="amber"
+              icon={Hash}
+              value={
+                <span
+                  className={`truncate text-base ${
+                    status?.topic ? "text-amber-400/90" : "text-neutral-100"
+                  }`}
+                >
+                  {status?.topic ?? "—"}
+                </span>
+              }
+            />
+          </Reveal>
         </section>
 
-        <div id="live-pipeline" className="scroll-mt-20">
+        <Reveal id="live-pipeline" className="scroll-mt-20">
           <LivePipeline />
-        </div>
+        </Reveal>
 
         <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="flex flex-col gap-4">
-            <div id="viral-moments" className="scroll-mt-20">
+            <Reveal id="viral-moments" className="scroll-mt-20">
               <ClipsGallery refreshKey={refreshKey} />
-            </div>
-            <div id="analytics" className="scroll-mt-20">
+            </Reveal>
+            <Reveal id="analytics" className="scroll-mt-20">
               <Analytics refreshKey={refreshKey} />
-            </div>
+            </Reveal>
           </div>
           <div className="flex flex-col gap-4">
-            <div id="discovered-queue" className="scroll-mt-20">
+            <Reveal id="discovered-queue" className="scroll-mt-20">
               <DiscoveredQueue refreshKey={refreshKey} />
-            </div>
+            </Reveal>
           </div>
         </section>
       </main>

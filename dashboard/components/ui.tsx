@@ -10,9 +10,37 @@ import {
   Clock,
   type LucideIcon,
 } from "lucide-react";
-import { useMotionValue, useSpring, animate } from "framer-motion";
+import { motion, useMotionValue, useSpring, animate } from "framer-motion";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import type { Stage } from "@/lib/types";
+
+const EASE = [0.22, 1, 0.36, 1] as const;
+
+/** Scroll-triggered fade-up reveal. Plays once when the element enters view. */
+export function Reveal({
+  children,
+  delay = 0,
+  className = "",
+  id,
+}: {
+  children: ReactNode;
+  delay?: number;
+  className?: string;
+  id?: string;
+}) {
+  return (
+    <motion.div
+      id={id}
+      className={className}
+      initial={{ opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ duration: 0.5, ease: EASE, delay }}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 /**
  * Mouse-tracking glow: feeds --mx/--my CSS vars to a `.glow-surface` element so

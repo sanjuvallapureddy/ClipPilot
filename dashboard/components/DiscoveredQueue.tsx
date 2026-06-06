@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { ListVideo } from "lucide-react";
 import type { DiscoveryItem } from "@/lib/types";
 import { SectionCard, Badge, Skeleton } from "@/components/ui";
@@ -50,8 +51,11 @@ export default function DiscoveredQueue({ refreshKey }: { refreshKey: number }) 
       )}
       <div className="flex flex-col">
         {(items ?? []).map((it) => (
-          <div
+          <motion.div
             key={it.id}
+            initial={{ opacity: 0, x: 8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
             className="flex items-center gap-3 border-b border-neutral-900/70 py-2.5 last:border-b-0"
           >
             <span className="font-mono text-sm font-semibold tabular-nums text-emerald-400">
@@ -64,7 +68,7 @@ export default function DiscoveredQueue({ refreshKey }: { refreshKey: number }) 
               </div>
             </div>
             <Badge>{it.source}</Badge>
-          </div>
+          </motion.div>
         ))}
       </div>
     </SectionCard>

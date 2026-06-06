@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import {
   Flame,
   Play,
@@ -99,8 +100,11 @@ export default function ClipsGallery({ refreshKey }: { refreshKey: number }) {
           const rendered = c.render_status === "rendered";
           const posted = c.post_status === "posted";
           return (
-            <div
+            <motion.div
               key={c.clip_id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
               className="group rounded-lg border border-neutral-900 bg-neutral-950/30 p-4 transition-all duration-300 hover:border-neutral-800 hover:bg-neutral-950/60"
             >
               <div className="flex items-baseline gap-3">
@@ -199,7 +203,7 @@ export default function ClipsGallery({ refreshKey }: { refreshKey: number }) {
                   </span>
                 )}
               </div>
-            </div>
+            </motion.div>
           );
         })}
       </div>
