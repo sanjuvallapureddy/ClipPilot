@@ -1,0 +1,11 @@
+# Shared Python deps across lanes A, B, C (single venv for the hackathon).
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+redis==5.0.8
+pydantic==2.9.2
+apscheduler==3.10.4
+openai==1.51.0
+google-api-python-client==2.145.0
+httpx==0.27.2
+numpy==1.26.4
+python-dotenv==1.0.1

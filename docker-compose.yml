@@ -1,0 +1,56 @@
+# ClipPilot — full stack. redis-stack (vector search) + python services + dashboard.
+# OpenShorts is vendored under engine/openshorts (see engine/README); in MOCK mode the
+# engine wrapper needs no OpenShorts container.
+services:
+  redis:
+    image: redis/redis-stack:latest   # RediSearch + RedisJSON for idx:trends
+    ports:
+      - "6379:6379"
+      - "8002:8001"                    # RedisInsight UI
+    volumes:
+      - redis-data:/data
+
+  engine:                              # Lane C — OpenShorts wrapper (FastAPI)
+    build: ./engine
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8001:8001"
+    depends_on:
+      - redis
+
+  discovery-orchestrator:              # Lane A
+    build: ./discovery-orchestrator
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      OPENSHORTS_URL: http://engine:8001
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - engine
+
+  performance:                         # Lane B
+    build: ./performance
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - redis
+
+  dashboard:                           # Lane D
+    build: ./dashboard
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DISCOVERY_API_URL: http://discovery-orchestrator:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - redis
+      - discovery-orchestrator
+
+volumes:
+  redis-data:
