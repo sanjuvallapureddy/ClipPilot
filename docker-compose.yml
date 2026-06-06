@@ -20,8 +20,8 @@ services:
     depends_on:
       - redis
 
-  discovery-orchestrator:              # Lane A
-    build: ./discovery-orchestrator
+  discovery_orchestrator:              # Lane A
+    build: ./discovery_orchestrator
     env_file: .env
     environment:
       REDIS_URL: redis://redis:6379/0
@@ -45,12 +45,12 @@ services:
     env_file: .env
     environment:
       REDIS_URL: redis://redis:6379/0
-      DISCOVERY_API_URL: http://discovery-orchestrator:8000
+      DISCOVERY_API_URL: http://discovery_orchestrator:8000
     ports:
       - "3000:3000"
     depends_on:
       - redis
-      - discovery-orchestrator
+      - discovery_orchestrator
 
 volumes:
   redis-data:
