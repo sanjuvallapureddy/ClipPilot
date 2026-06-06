@@ -18,7 +18,7 @@ from shared import keys
 from shared.redis_client import coord, get_client
 from shared.schemas import DiscoveryItem, Patterns
 
-from . import discovery, orchestrator
+from . import discovery, orchestrator, web_research
 
 app = FastAPI(title="ClipPilot Discovery + Orchestrator", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
@@ -43,6 +43,7 @@ def _startup() -> None:
     if not _scheduler.running:
         _scheduler.start()
     coord("A", "milestone", "discovery-orchestrator up")
+    coord("A", "info", "added browser-use research harness (isolated .venv-harness)")
 
 
 class StartReq(BaseModel):
@@ -110,6 +111,16 @@ def status() -> dict:
 def discover(req: DiscoverReq) -> dict:
     patterns = Patterns.from_json(get_client().get(keys.PATTERNS_CURRENT))
     items = discovery.discover(topic=req.topic, top_n=req.top_n, patterns=patterns)
+    return {"count": len(items), "items": [i.model_dump() for i in items]}
+
+
+@app.post("/research")
+def research(req: DiscoverReq) -> dict:
+    """Browser-use-guided discovery: run the isolated research harness to find trending
+    leads, resolve them to REAL YouTube episodes, score, and queue the top-N. Falls back
+    to plain discovery when the harness yields nothing. Reuses discovery:queue + the
+    DiscoveryItem schema (not a contract change)."""
+    items = web_research.research(topic=req.topic, top_n=req.top_n)
     return {"count": len(items), "items": [i.model_dump() for i in items]}
 
 

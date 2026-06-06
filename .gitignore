@@ -12,5 +12,7 @@ build/
 *.log
 .DS_Store
 media/               # downloaded source videos (Lane C ingest)
-engine/openshorts/   # vendored OpenShorts (add as submodule / git clone)
-openshorts/          # vendored OpenShorts (cloned at repo root)
+# vendored OpenShorts (add as submodule / git clone)
+engine/openshorts/
+# vendored OpenShorts (cloned at repo root)
+openshorts/

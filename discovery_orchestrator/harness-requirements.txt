@@ -1,0 +1,20 @@
+# ClipPilot — browser-use research harness deps (ISOLATED).
+#
+# DO NOT install these into the project's main `.venv`. browser-use drags in
+# openai>=2 and starlette>=1, which BREAK the FastAPI lanes (A/C) that pin
+# fastapi 0.115.0 / starlette 0.38.6 / openai 1.51.0. They live ONLY in the
+# dedicated `.venv-harness` and are reached across a subprocess boundary
+# (discovery_orchestrator/harness_runner.py via web_research.py).
+#
+# Recreate the harness venv with:
+#   python3 -m venv .venv-harness
+#   .venv-harness/bin/python -m pip install -r discovery_orchestrator/harness-requirements.txt
+#   .venv-harness/bin/python -m playwright install chromium
+#
+# Verified import API (browser-use 0.12.9):
+#   from browser_use import Agent, Browser, ChatOpenAI
+#   agent = Agent(task=..., llm=ChatOpenAI(model="gpt-5.5"), browser=Browser(headless=True))
+#   history = await agent.run(max_steps=18); leads_text = history.final_result()
+
+browser-use==0.12.9
+playwright==1.60.0

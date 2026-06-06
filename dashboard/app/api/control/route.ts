@@ -10,6 +10,7 @@ const MAP: Record<string, { method: string; path: string }> = {
   start: { method: "POST", path: "/start" },
   stop: { method: "POST", path: "/stop" },
   discover: { method: "POST", path: "/discover" },
+  research: { method: "POST", path: "/research" },
 };
 
 export async function POST(req: Request) {

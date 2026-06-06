@@ -4,6 +4,7 @@ import { useCopilotAction, useCopilotReadable } from "@copilotkit/react-core";
 import {
   Clapperboard,
   Search,
+  Globe,
   Play,
   Square,
   Power,
@@ -99,6 +100,54 @@ export default function Page() {
           <div className="flex items-center gap-2 text-xs text-neutral-500">
             <Loader2 size={12} className="animate-spin" />
             Searching YouTube + scoring against trend vectors…
+          </div>
+        )}
+      </Card>
+    ),
+  });
+
+  useCopilotAction({
+    name: "researchTrends",
+    description:
+      "Use the browser-use web-research harness to find THIS WEEK's trending podcast " +
+      "episodes for a topic, resolve them to real YouTube videos, score, and queue the best.",
+    parameters: [
+      { name: "topic", type: "string", description: "topic to research", required: true },
+    ],
+    handler: async ({ topic }) => {
+      const out = await control("research", { topic });
+      bump();
+      return out;
+    },
+    render: ({ status: s, args, result }) => (
+      <Card className="my-1">
+        <div className="flex items-center gap-2 pb-3">
+          <Globe size={14} className="text-neutral-500" />
+          <span className="text-xs font-medium uppercase tracking-wider text-neutral-400">
+            Researching “{args?.topic}”
+          </span>
+        </div>
+        {s === "complete" ? (
+          <div className="flex flex-col gap-2">
+            <div className="font-mono text-[11px] text-neutral-500">
+              Queued {result?.count ?? 0} researched episodes.
+            </div>
+            {(result?.items || []).slice(0, 5).map((it: any, i: number) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 border-t border-neutral-900 pt-2 text-xs"
+              >
+                <span className="font-mono text-emerald-400">
+                  {(it.trend_score ?? 0).toFixed(2)}
+                </span>
+                <span className="flex-1 truncate text-neutral-300">{it.title}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-xs text-neutral-500">
+            <Loader2 size={12} className="animate-spin" />
+            Browsing the web for this week’s trending episodes…
           </div>
         )}
       </Card>
@@ -230,6 +279,19 @@ export default function Page() {
           >
             <Search size={14} />
             Discover
+          </Button>
+          <Button
+            variant="ghost"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              await control("research", { topic: status?.topic || "tech" });
+              setBusy(false);
+              bump();
+            }}
+          >
+            <Globe size={14} />
+            Research
           </Button>
           <Button
             variant="primary"
