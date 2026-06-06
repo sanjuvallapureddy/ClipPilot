@@ -1,5 +1,5 @@
 "use client";
-import type { ReactNode } from "react";
+import { forwardRef, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Loader2,
   CheckCircle2,
@@ -10,7 +10,75 @@ import {
   Clock,
   type LucideIcon,
 } from "lucide-react";
+import { motion, useMotionValue, useSpring, animate } from "framer-motion";
+import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import type { Stage } from "@/lib/types";
+
+const EASE = [0.22, 1, 0.36, 1] as const;
+
+/** Scroll-triggered fade-up reveal. Plays once when the element enters view. */
+export function Reveal({
+  children,
+  delay = 0,
+  className = "",
+  id,
+}: {
+  children: ReactNode;
+  delay?: number;
+  className?: string;
+  id?: string;
+}) {
+  return (
+    <motion.div
+      id={id}
+      className={className}
+      initial={{ opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ duration: 0.5, ease: EASE, delay }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+/**
+ * Mouse-tracking glow: feeds --mx/--my CSS vars to a `.glow-surface` element so
+ * the border illuminates exactly where the cursor sits (Linear/Vercel hallmark).
+ */
+export function useMouseGlow<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const onMouseMove = (e: React.MouseEvent<T>) => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    el.style.setProperty("--mx", `${e.clientX - rect.left}px`);
+    el.style.setProperty("--my", `${e.clientY - rect.top}px`);
+  };
+  return { ref, onMouseMove };
+}
+
+// lucide-react v1 dropped brand icons, so we ship a small inline YouTube glyph.
+export function YouTubeGlyph({
+  size = 14,
+  className = "",
+}: {
+  size?: number;
+  className?: string;
+}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31.2 31.2 0 0 0 0 12a31.2 31.2 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31.2 31.2 0 0 0 24 12a31.2 31.2 0 0 0-.5-5.8zM9.6 15.6V8.4l6.3 3.6-6.3 3.6z" />
+    </svg>
+  );
+}
 
 type ButtonVariant = "primary" | "ghost" | "danger";
 
@@ -25,22 +93,24 @@ const buttonVariants: Record<ButtonVariant, string> = {
     "bg-transparent text-red-400/90 hover:text-red-300 border border-red-950 hover:border-red-900 hover:bg-red-950/30",
 };
 
-export function Button({
-  variant = "primary",
-  className = "",
-  children,
-  ...props
-}: {
-  variant?: ButtonVariant;
-  className?: string;
-  children: ReactNode;
-} & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+export const Button = forwardRef<
+  HTMLButtonElement,
+  {
+    variant?: ButtonVariant;
+    className?: string;
+    children: ReactNode;
+  } & React.ButtonHTMLAttributes<HTMLButtonElement>
+>(function Button({ variant = "primary", className = "", children, ...props }, ref) {
   return (
-    <button className={`${buttonBase} ${buttonVariants[variant]} ${className}`} {...props}>
+    <button
+      ref={ref}
+      className={`${buttonBase} ${buttonVariants[variant]} ${className}`}
+      {...props}
+    >
       {children}
     </button>
   );
-}
+});
 
 export function Card({
   className = "",
@@ -71,9 +141,12 @@ export function SectionCard({
   className?: string;
   children: ReactNode;
 }) {
+  const glow = useMouseGlow<HTMLDivElement>();
   return (
     <div
-      className={`rounded-lg border border-neutral-900 bg-black transition-colors duration-300 hover:border-neutral-800 ${className}`}
+      ref={glow.ref}
+      onMouseMove={glow.onMouseMove}
+      className={`glow-surface rounded-lg border border-neutral-900 bg-black transition-colors duration-300 hover:border-neutral-800 ${className}`}
     >
       <div className="flex items-center justify-between border-b border-neutral-900 px-5 py-3">
         <div className="flex items-center gap-2">
@@ -158,6 +231,13 @@ const glowVariants: Record<
   },
 };
 
+const sparkStroke: Record<GlowVariant, string> = {
+  red: "#fb7185",
+  blue: "#60a5fa",
+  cyan: "#22d3ee",
+  amber: "#fbbf24",
+};
+
 export function GlowMetricCard({
   title,
   value,
@@ -166,6 +246,7 @@ export function GlowMetricCard({
   variant,
   dot = false,
   pulse = false,
+  sparkline,
 }: {
   title: string;
   value: ReactNode;
@@ -174,11 +255,15 @@ export function GlowMetricCard({
   variant: GlowVariant;
   dot?: boolean;
   pulse?: boolean;
+  sparkline?: number[];
 }) {
   const s = glowVariants[variant];
+  const glow = useMouseGlow<HTMLDivElement>();
   return (
     <div
-      className={`group relative overflow-hidden rounded-lg border bg-black p-5 transition-all duration-300 ${s.border}`}
+      ref={glow.ref}
+      onMouseMove={glow.onMouseMove}
+      className={`glow-surface group relative overflow-hidden rounded-lg border bg-black p-5 transition-all duration-300 ${s.border}`}
     >
       {/* Localized ambient glow that intensifies on hover. */}
       <div
@@ -203,14 +288,19 @@ export function GlowMetricCard({
           )
         )}
       </div>
-      <div className="relative z-10 mt-3 flex items-baseline gap-2">
-        <span
-          className={`font-mono text-2xl font-semibold tracking-tight text-neutral-100 transition-colors duration-300 ${s.valueHover}`}
-        >
-          {value}
-        </span>
-        {description && (
-          <span className="font-mono text-[10px] text-neutral-600">{description}</span>
+      <div className="relative z-10 mt-3 flex items-end justify-between gap-2">
+        <div className="flex items-baseline gap-2">
+          <span
+            className={`font-mono text-2xl font-semibold tracking-tight text-neutral-100 transition-colors duration-300 ${s.valueHover}`}
+          >
+            {value}
+          </span>
+          {description && (
+            <span className="font-mono text-[10px] text-neutral-600">{description}</span>
+          )}
+        </div>
+        {sparkline && sparkline.length > 1 && (
+          <Sparkline data={sparkline} stroke={sparkStroke[variant]} />
         )}
       </div>
     </div>
@@ -257,3 +347,99 @@ export function StagePill({ stage }: { stage: Stage }) {
     </span>
   );
 }
+
+/** Ambient skeleton bar — slow neutral-950→900 pulse, GPU-composited. */
+export function Skeleton({ className = "" }: { className?: string }) {
+  return <div className={`skeleton transform-gpu ${className}`} />;
+}
+
+/** Hyper-compact SVG sparkline with a soft gradient fill under the curve. */
+export function Sparkline({
+  data,
+  stroke = "#22d3ee",
+  width = 56,
+  height = 20,
+}: {
+  data: number[];
+  stroke?: string;
+  width?: number;
+  height?: number;
+}) {
+  if (data.length < 2) return null;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const span = max - min || 1;
+  const stepX = width / (data.length - 1);
+  const pts = data.map((v, i) => {
+    const x = i * stepX;
+    const y = height - ((v - min) / span) * (height - 2) - 1;
+    return [x, y] as const;
+  });
+  const line = pts.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const area = `${line} L${width},${height} L0,${height} Z`;
+  const gid = `spark-${stroke.replace("#", "")}`;
+  return (
+    <svg width={width} height={height} className="overflow-visible opacity-70 transition-opacity duration-300 group-hover:opacity-100">
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={stroke} stopOpacity={0.25} />
+          <stop offset="100%" stopColor={stroke} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#${gid})`} stroke="none" />
+      <path d={line} fill="none" stroke={stroke} strokeWidth={1.25} strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Physics-driven counter: springs toward the target, overshoots, then snaps. */
+export function AnimatedNumber({ value }: { value: number }) {
+  const mv = useMotionValue(value);
+  const spring = useSpring(mv, { stiffness: 400, damping: 30 });
+  const [display, setDisplay] = useState(value);
+
+  useEffect(() => {
+    const controls = animate(mv, value, { duration: 0 });
+    return controls.stop;
+  }, [mv, value]);
+
+  useEffect(() => {
+    const unsub = spring.on("change", (v) => setDisplay(Math.round(v)));
+    return unsub;
+  }, [spring]);
+
+  return <>{display.toLocaleString()}</>;
+}
+
+/** Radix tooltip with an inline monospace hotkey hint, smoked-glass surface. */
+export function Tooltip({
+  label,
+  hotkey,
+  children,
+}: {
+  label: string;
+  hotkey?: string;
+  children: ReactNode;
+}) {
+  return (
+    <TooltipPrimitive.Root>
+      <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
+      <TooltipPrimitive.Portal>
+        <TooltipPrimitive.Content
+          sideOffset={8}
+          className="z-50 flex items-center gap-2 rounded-md border border-neutral-800 bg-black/80 px-2.5 py-1.5 text-[11px] text-neutral-300 shadow-2xl backdrop-blur-md"
+        >
+          {label}
+          {hotkey && (
+            <kbd className="rounded border border-neutral-800 bg-neutral-900 px-1 py-0.5 font-mono text-[10px] text-neutral-400">
+              {hotkey}
+            </kbd>
+          )}
+          <TooltipPrimitive.Arrow className="fill-neutral-800" />
+        </TooltipPrimitive.Content>
+      </TooltipPrimitive.Portal>
+    </TooltipPrimitive.Root>
+  );
+}
+
+export const TooltipProvider = TooltipPrimitive.Provider;
