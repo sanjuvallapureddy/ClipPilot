@@ -32,6 +32,13 @@ const accent: Record<ToastVariant, string> = {
   loading: "text-neutral-400",
 };
 
+const barColor: Record<ToastVariant, string> = {
+  success: "bg-emerald-500/60",
+  error: "bg-rose-500/60",
+  info: "bg-neutral-600",
+  loading: "bg-neutral-700",
+};
+
 // Module-level pub/sub so any component can fire a toast without context wiring.
 let listeners: ((toasts: ToastItem[]) => void)[] = [];
 let toasts: ToastItem[] = [];
@@ -76,22 +83,39 @@ export function Toaster() {
       <AnimatePresence initial={false}>
         {items.map((t) => {
           const Icon = icons[t.variant];
+          const showBar = t.variant !== "loading";
           return (
             <motion.div
               key={t.id}
               layout
               initial={{ opacity: 0, y: 12, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              exit={{ opacity: 0, x: 24, scale: 0.98 }}
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={{ left: 0, right: 0.9 }}
+              onDragEnd={(_, info) => {
+                if (info.offset.x > 60) dismiss(t.id);
+              }}
               onClick={() => dismiss(t.id)}
-              className="pointer-events-auto flex cursor-pointer items-center gap-2 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-200 shadow-2xl"
+              className="pointer-events-auto relative flex min-w-[220px] max-w-[320px] cursor-pointer items-center gap-2 overflow-hidden rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-200 shadow-2xl"
             >
               <Icon
                 size={14}
-                className={`${accent[t.variant]} ${t.variant === "loading" ? "animate-spin" : ""}`}
+                className={`shrink-0 ${accent[t.variant]} ${
+                  t.variant === "loading" ? "animate-spin" : ""
+                }`}
               />
-              <span className="max-w-[280px] truncate">{t.message}</span>
+              <span className="truncate">{t.message}</span>
+              {showBar && (
+                <motion.span
+                  className={`absolute bottom-0 left-0 h-0.5 ${barColor[t.variant]}`}
+                  initial={{ width: "100%" }}
+                  animate={{ width: "0%" }}
+                  transition={{ duration: t.duration / 1000, ease: "linear" }}
+                />
+              )}
             </motion.div>
           );
         })}

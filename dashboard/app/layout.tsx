@@ -6,6 +6,7 @@ import { CopilotKit } from "@copilotkit/react-core";
 import { CopilotSidebar } from "@copilotkit/react-ui";
 import { Toaster } from "@/components/toast";
 import { TooltipProvider } from "@/components/ui";
+import ChatInput from "@/components/ChatInput";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <CopilotKit runtimeUrl="/api/copilotkit">
             <CopilotSidebar
               defaultOpen
+              Input={ChatInput}
               labels={{
                 title: "ClipPilot Copilot",
                 initial:

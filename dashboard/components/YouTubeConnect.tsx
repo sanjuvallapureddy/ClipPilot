@@ -67,16 +67,8 @@ export default function YouTubeConnect() {
     load();
   };
 
-  if (!status) return null;
-
-  if (!status.configured) {
-    return (
-      <span className="hidden items-center gap-1.5 font-mono text-[10px] text-neutral-600 sm:inline-flex">
-        <YouTubeGlyph size={13} className="text-neutral-700" />
-        YouTube not configured
-      </span>
-    );
-  }
+  // Keep the top bar clean: render nothing until YouTube is configured.
+  if (!status || !status.configured) return null;
 
   const active = status.accounts.find((a) => a.active);
 
