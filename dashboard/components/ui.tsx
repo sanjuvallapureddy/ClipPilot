@@ -125,6 +125,98 @@ export function MetricCard({
   );
 }
 
+type GlowVariant = "red" | "blue" | "cyan" | "amber";
+
+// Full literal class strings per variant so Tailwind's JIT scanner can see them.
+const glowVariants: Record<
+  GlowVariant,
+  { border: string; text: string; glow: string; valueHover: string }
+> = {
+  red: {
+    border: "border-rose-950/40 hover:border-rose-900/60",
+    text: "text-rose-400",
+    glow: "bg-rose-500/15",
+    valueHover: "group-hover:text-rose-400",
+  },
+  blue: {
+    border: "border-blue-950/40 hover:border-blue-900/50",
+    text: "text-blue-400",
+    glow: "bg-blue-500/10",
+    valueHover: "group-hover:text-blue-400",
+  },
+  cyan: {
+    border: "border-cyan-950/40 hover:border-cyan-900/50",
+    text: "text-cyan-400",
+    glow: "bg-cyan-500/10",
+    valueHover: "group-hover:text-cyan-400",
+  },
+  amber: {
+    border: "border-amber-950/40 hover:border-amber-900/50",
+    text: "text-amber-400",
+    glow: "bg-amber-500/10",
+    valueHover: "group-hover:text-amber-400",
+  },
+};
+
+export function GlowMetricCard({
+  title,
+  value,
+  description,
+  icon: Icon,
+  variant,
+  dot = false,
+  pulse = false,
+}: {
+  title: string;
+  value: ReactNode;
+  description?: ReactNode;
+  icon?: LucideIcon;
+  variant: GlowVariant;
+  dot?: boolean;
+  pulse?: boolean;
+}) {
+  const s = glowVariants[variant];
+  return (
+    <div
+      className={`group relative overflow-hidden rounded-lg border bg-black p-5 transition-all duration-300 ${s.border}`}
+    >
+      {/* Localized ambient glow that intensifies on hover. */}
+      <div
+        className={`pointer-events-none absolute -right-10 -top-10 h-24 w-24 rounded-full ${s.glow} opacity-60 blur-2xl transition-opacity duration-300 group-hover:opacity-100`}
+      />
+      <div className="relative z-10 flex items-center justify-between">
+        <p className="text-[10px] font-medium uppercase tracking-widest text-neutral-500">
+          {title}
+        </p>
+        {dot ? (
+          <span
+            className={`h-1.5 w-1.5 rounded-full bg-current shadow-[0_0_8px_currentColor] ${s.text} ${
+              pulse ? "animate-[pulse_3s_ease-in-out_infinite]" : "opacity-60"
+            }`}
+          />
+        ) : (
+          Icon && (
+            <Icon
+              size={16}
+              className={`${s.text} opacity-70 transition-all duration-300 group-hover:-translate-y-px group-hover:opacity-100`}
+            />
+          )
+        )}
+      </div>
+      <div className="relative z-10 mt-3 flex items-baseline gap-2">
+        <span
+          className={`font-mono text-2xl font-semibold tracking-tight text-neutral-100 transition-colors duration-300 ${s.valueHover}`}
+        >
+          {value}
+        </span>
+        {description && (
+          <span className="font-mono text-[10px] text-neutral-600">{description}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function Badge({
   children,
   className = "",

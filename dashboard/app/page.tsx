@@ -18,7 +18,7 @@ import LivePipeline from "@/components/LivePipeline";
 import DiscoveredQueue from "@/components/DiscoveredQueue";
 import ClipsGallery from "@/components/ClipsGallery";
 import Analytics from "@/components/Analytics";
-import { Button, Card, MetricCard, Badge, StagePill } from "@/components/ui";
+import { Button, Card, GlowMetricCard, Badge, StagePill } from "@/components/ui";
 import type { Stage } from "@/lib/types";
 
 async function control(action: string, payload: unknown = {}) {
@@ -272,38 +272,44 @@ export default function Page() {
 
       <main className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-6">
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <MetricCard
+          <GlowMetricCard
             title="Status"
-            icon={Power}
+            variant="red"
+            dot
+            pulse={running}
             value={
-              <span className="flex items-center gap-2">
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    running ? "bg-emerald-400" : "bg-neutral-700"
-                  }`}
-                />
+              <span className={running ? "text-neutral-100" : "text-rose-400/90"}>
                 {running ? "ON" : "OFF"}
               </span>
             }
             description="autonomous loop"
           />
-          <MetricCard
+          <GlowMetricCard
             title="Cycles Run"
+            variant="blue"
             icon={Repeat}
             value={status?.cycles ?? 0}
             description="total"
           />
-          <MetricCard
+          <GlowMetricCard
             title="Queue Pending"
+            variant="cyan"
             icon={ListVideo}
             value={status?.queue_pending ?? 0}
             description="candidates"
           />
-          <MetricCard
+          <GlowMetricCard
             title="Current Topic"
+            variant="amber"
             icon={Hash}
             value={
-              <span className="truncate text-base">{status?.topic ?? "—"}</span>
+              <span
+                className={`truncate text-base ${
+                  status?.topic ? "text-amber-400/90" : "text-neutral-100"
+                }`}
+              >
+                {status?.topic ?? "—"}
+              </span>
             }
           />
         </section>
