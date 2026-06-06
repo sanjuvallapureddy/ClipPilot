@@ -84,8 +84,21 @@ export default function YouTubeConnect() {
     load();
   };
 
-  // Keep the top bar clean: render nothing until YouTube is configured.
-  if (!status || !status.configured) return null;
+  if (!status) return null;
+
+  // Not configured (missing API keys) — show a minimal ghost button so users know.
+  if (!status.configured) {
+    return (
+      <button
+        onClick={connect}
+        title="Connect YouTube account"
+        className="inline-flex items-center gap-1.5 rounded-md border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-xs text-neutral-400 transition-colors hover:border-neutral-700 hover:text-white"
+      >
+        <YouTubeGlyph size={13} className="text-red-500" />
+        Connect YouTube
+      </button>
+    );
+  }
 
   const active = status.accounts.find((a) => a.active);
 
