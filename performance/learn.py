@@ -74,7 +74,7 @@ def _gpt_patterns(results: list[ClipResult], heuristic: Patterns) -> Patterns:  
     )
     client = OpenAI()
     resp = client.chat.completions.create(
-        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        model=os.getenv("OPENAI_MODEL", "gpt-5.5"),
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"}, temperature=0.5,
     )

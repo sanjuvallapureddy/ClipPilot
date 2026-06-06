@@ -22,7 +22,7 @@ from shared import keys
 from shared.redis_client import advance_job, coord, get_client, read_job
 from shared.schemas import ClipResult, EngineStatus, ProcessRequest
 
-from . import transcript
+from . import download, transcript
 from .scoring import FACTORS
 
 _ENGINE_JOBS: dict[str, EngineStatus] = {}
@@ -95,9 +95,18 @@ async def _run(engine_job_id: str, req: ProcessRequest) -> None:
 async def _run_real(engine_job_id: str, req: ProcessRequest) -> None:
     cfg = req.config
 
-    # 1. fetch the real transcript
-    _set(engine_job_id, req, "fetching", 0.15, message="fetching transcript")
-    segments = await asyncio.to_thread(transcript.fetch_segments, req.youtube_url)
+    # 1. fetch: download the REAL source video (ingest for OpenShorts + local Whisper),
+    # then pull the real transcript. Download failure is non-fatal to moment detection
+    # (captions may still exist) but is logged loudly.
+    _set(engine_job_id, req, "fetching", 0.1, message="downloading source video")
+    video_path = await asyncio.to_thread(download.download, req.youtube_url)
+    if not video_path:
+        coord("C", "info", "no local video; continuing with captions if available")
+
+    _set(engine_job_id, req, "fetching", 0.2, message="fetching transcript")
+    segments = await asyncio.to_thread(
+        transcript.fetch_segments, req.youtube_url, video_path
+    )
     if not segments:
         _set(engine_job_id, req, "failed", 1.0, status="error",
              error="no transcript available (no captions; Whisper needs audio + key)",
@@ -172,7 +181,7 @@ def _detect_moments(windows: list[dict], req: ProcessRequest, n: int) -> list[di
     try:
         client = OpenAI()
         resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            model=os.getenv("OPENAI_MODEL", "gpt-5.5"),
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"}, temperature=0.4,
         )

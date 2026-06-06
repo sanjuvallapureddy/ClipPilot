@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import struct
 from datetime import datetime, timezone
 
@@ -87,8 +88,79 @@ def trend_fit(topic_summary: str) -> float:
 
 # --- real candidate sourcing via yt-dlp --------------------------------------
 
-def fetch_candidates(topic: str, max_results: int = 12) -> list[dict]:
-    """REAL YouTube search via yt-dlp (no API key). Returns real episodes w/ view counts."""
+_ISO8601_DURATION = re.compile(
+    r"P(?:(?P<days>\d+)D)?T?(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?"
+)
+
+
+def _parse_iso8601_duration(s: str) -> float:
+    """Parse a YouTube `contentDetails.duration` (e.g. 'PT1H2M3S') to seconds."""
+    if not s:
+        return 0.0
+    m = _ISO8601_DURATION.fullmatch(s)
+    if not m:
+        return 0.0
+    parts = {k: int(v) for k, v in m.groupdict(default="0").items()}
+    return float(parts["days"] * 86400 + parts["hours"] * 3600
+                 + parts["minutes"] * 60 + parts["seconds"])
+
+
+def _keep_episode(c: dict) -> bool:
+    """Drop channel-trailer / very short / zero-length entries; keep real episodes."""
+    return bool(c["title"]) and (c["duration"] == 0 or c["duration"] >= 300)
+
+
+def _fetch_via_data_api(topic: str, max_results: int = 12) -> list[dict]:
+    """REAL YouTube Data API search: search.list -> videos.list for real stats.
+
+    Quota: search.list costs 100 units; videos.list is 1 unit per call (<=50 ids), so a
+    pass is ~101 units. Callers gate discovery to an empty queue to stay within quota.
+    """
+    key = os.getenv("YOUTUBE_API_KEY")
+    if not key:
+        return []
+    try:
+        from googleapiclient.discovery import build
+
+        yt = build("youtube", "v3", developerKey=key, cache_discovery=False)
+        search = yt.search().list(
+            q=f"{topic} podcast", part="id", type="video",
+            maxResults=min(max_results, 50), order="relevance", relevanceLanguage="en",
+        ).execute()
+        ids = [it["id"]["videoId"] for it in search.get("items", [])
+               if it.get("id", {}).get("videoId")]
+        if not ids:
+            return []
+        details = yt.videos().list(
+            part="snippet,statistics,contentDetails", id=",".join(ids),
+        ).execute()
+    except Exception as e:  # real failure -> empty, never faked
+        coord("A", "error", f"YouTube Data API failed: {e}")
+        return []
+
+    out: list[dict] = []
+    for v in details.get("items", []):
+        vid = v.get("id")
+        sn = v.get("snippet", {})
+        st = v.get("statistics", {})
+        cd = v.get("contentDetails", {})
+        if not vid:
+            continue
+        out.append({
+            "video_id": vid,
+            "youtube_url": f"https://youtube.com/watch?v={vid}",
+            "title": sn.get("title") or "",
+            "podcast": sn.get("channelTitle") or "",
+            "view_count": int(st.get("viewCount") or 0),
+            "like_count": int(st.get("likeCount") or 0),
+            "duration": _parse_iso8601_duration(cd.get("duration", "")),
+            "published_at": sn.get("publishedAt") or _now_iso(),
+        })
+    return [c for c in out if _keep_episode(c)]
+
+
+def _fetch_via_ytdlp(topic: str, max_results: int = 12) -> list[dict]:
+    """REAL YouTube search via yt-dlp (no API key). Fallback when YOUTUBE_API_KEY unset."""
     query = f"ytsearch{max_results}:{topic} podcast"
     opts = {
         "quiet": True, "no_warnings": True, "extract_flat": True, "skip_download": True,
@@ -109,13 +181,24 @@ def fetch_candidates(topic: str, max_results: int = 12) -> list[dict]:
                 "title": e.get("title") or "",
                 "podcast": e.get("channel") or e.get("uploader") or "",
                 "view_count": int(e.get("view_count") or 0),
+                "like_count": int(e.get("like_count") or 0),
                 "duration": float(e.get("duration") or 0),
                 "published_at": _now_iso(),
             })
     except Exception as e:  # real failure -> empty, never faked
         coord("A", "error", f"yt-dlp search failed: {e}")
-    # drop channel-trailer / very short / zero-length entries; keep real episodes
-    return [c for c in out if c["title"] and (c["duration"] == 0 or c["duration"] >= 300)]
+    return [c for c in out if _keep_episode(c)]
+
+
+def fetch_candidates(topic: str, max_results: int = 12) -> list[dict]:
+    """REAL candidate episodes. Prefer the YouTube Data API (real view/like stats);
+    fall back to yt-dlp search when YOUTUBE_API_KEY is unset. Real data either way."""
+    if os.getenv("YOUTUBE_API_KEY"):
+        items = _fetch_via_data_api(topic, max_results)
+        if items:
+            return items
+        coord("A", "info", "Data API returned nothing; falling back to yt-dlp search")
+    return _fetch_via_ytdlp(topic, max_results)
 
 
 # --- virality scoring (real signals) -----------------------------------------
@@ -159,7 +242,7 @@ def score_virality(title: str, topic_summary: str, views: int, fit: float,
         )
         client = OpenAI()
         resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            model=os.getenv("OPENAI_MODEL", "gpt-5.5"),
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"}, temperature=0.4,
         )

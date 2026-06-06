@@ -9,16 +9,22 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import tempfile
 import urllib.request
 
 
-def fetch_segments(url: str) -> list[tuple[float, str]]:
-    """Return real [(start_seconds, text), ...] for the episode. Empty if unavailable."""
+def fetch_segments(url: str, local_path: str | None = None) -> list[tuple[float, str]]:
+    """Return real [(start_seconds, text), ...] for the episode. Empty if unavailable.
+
+    Captions first (fast, free, no key). Whisper fallback transcribes audio; if a
+    downloaded video `local_path` is supplied, its audio is extracted with FFmpeg instead
+    of re-downloading.
+    """
     segs = _from_captions(url)
     if segs:
         return segs
-    return _from_whisper(url)
+    return _from_whisper(url, local_path)
 
 
 def _from_captions(url: str) -> list[tuple[float, str]]:
@@ -65,20 +71,30 @@ def _from_captions(url: str) -> list[tuple[float, str]]:
     return out
 
 
-def _from_whisper(url: str) -> list[tuple[float, str]]:  # pragma: no cover - needs audio+key
-    """Download audio (yt-dlp) and transcribe with OpenAI Whisper. Real, but slower."""
+def _from_whisper(url: str, local_path: str | None = None) -> list[tuple[float, str]]:  # pragma: no cover - needs audio+key
+    """Transcribe with OpenAI Whisper. Uses the already-downloaded `local_path` (FFmpeg
+    audio extract, no re-download) when present, else fetches audio via yt-dlp. Real."""
     if not os.getenv("OPENAI_API_KEY"):
         return []
     try:
-        import yt_dlp
         from openai import OpenAI
 
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "audio.m4a")
-            opts = {"quiet": True, "no_warnings": True, "format": "bestaudio/best",
-                    "outtmpl": path, "max_filesize": 25 * 1024 * 1024}
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                ydl.download([url])
+            if local_path and os.path.exists(local_path):
+                # extract compact mono audio from the downloaded video (FFmpeg on PATH)
+                subprocess.run(
+                    ["ffmpeg", "-y", "-i", local_path, "-vn", "-ac", "1", "-ar", "16000",
+                     "-b:a", "64k", path],
+                    check=True, capture_output=True,
+                )
+            else:
+                import yt_dlp
+
+                opts = {"quiet": True, "no_warnings": True, "format": "bestaudio/best",
+                        "outtmpl": path, "max_filesize": 25 * 1024 * 1024}
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    ydl.download([url])
             if not os.path.exists(path):
                 return []
             client = OpenAI()
