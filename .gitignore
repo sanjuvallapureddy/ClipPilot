@@ -1,7 +1,9 @@
 .env
+client_secret*.json
 __pycache__/
 *.pyc
 .venv/
+.venv-harness/
 venv/
 node_modules/
 .next/
@@ -10,4 +12,6 @@ build/
 *.mp4
 *.log
 .DS_Store
+media/               # downloaded source videos (Lane C ingest)
 engine/openshorts/   # vendored OpenShorts (add as submodule / git clone)
+openshorts/          # vendored OpenShorts (cloned at repo root)

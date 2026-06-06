@@ -46,7 +46,7 @@ def _gpt_variants(topic: str, n: int, patterns: Patterns) -> list[Variant]:  # p
     )
     client = OpenAI()
     resp = client.chat.completions.create(
-        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        model=os.getenv("OPENAI_MODEL", "gpt-5.5"),
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"}, temperature=0.8,
     )

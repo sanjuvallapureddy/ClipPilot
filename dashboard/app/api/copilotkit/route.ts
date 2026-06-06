@@ -15,7 +15,7 @@ export const runtime = "nodejs";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "sk-missing" });
 const serviceAdapter = new OpenAIAdapter({
   openai,
-  model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+  model: process.env.OPENAI_MODEL || "gpt-5.5",
 });
 
 async function laneA(path: string, method = "POST", payload: unknown = {}) {
