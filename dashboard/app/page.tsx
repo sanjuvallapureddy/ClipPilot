@@ -21,6 +21,7 @@ import ClipsGallery from "@/components/ClipsGallery";
 import Analytics from "@/components/Analytics";
 import ActivityTicker from "@/components/ActivityTicker";
 import CommandMenu, { openCommandMenu } from "@/components/CommandMenu";
+import YouTubeConnect from "@/components/YouTubeConnect";
 import {
   Button,
   Card,
@@ -343,6 +344,8 @@ export default function Page() {
           </Tooltip>
 
           <div className="mx-1 hidden h-5 w-px bg-neutral-900 sm:block" />
+
+          <YouTubeConnect />
 
           <Tooltip label="Discover podcasts" hotkey="D">
             <Button variant="ghost" disabled={busy} onClick={doDiscover}>
