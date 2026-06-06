@@ -41,3 +41,13 @@ body {
   --copilot-kit-separator-color: #1a1a1a;
   --copilot-kit-muted-color: #737373;
 }
+
+.copilotKitWindow .copilotKitInput > textarea,
+.copilotKitSidebar .copilotKitInput > textarea {
+  color: #1c1c1c !important;
+}
+
+.copilotKitWindow .copilotKitInput > textarea::placeholder,
+.copilotKitSidebar .copilotKitInput > textarea::placeholder {
+  color: #737373 !important;
+}
