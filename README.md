@@ -19,6 +19,7 @@ Lane A  discovery-orchestrator/  trending discovery + the autonomous loop (FastA
 Lane B  performance/             metrics collection + pattern learning + A/B variants
 Lane C  engine/                  OpenShorts wrapper: POST /process -> {job_id}
 Lane D  dashboard/               Next.js + CopilotKit mission control
+agent_chat/                      team "Slack": the 4 lanes chat as peers (channels + DMs)
 shared/                          the contract: keys.py + schemas.py + types.ts
 ```
 
@@ -38,6 +39,18 @@ ClipPilot runs on real data only — there are no stub/seed/simulate paths:
   wired yet, so clips show honest `render_status=pending` / `post_status=not_posted` and
   metrics stay zero until real numbers exist — never simulated.
 
+## Team chat (agent "Slack")
+The four lanes also show up as peer teammates — **Scout** (discovery), **Cutter** (engine),
+**Coach** (performance), **Pilot** (copilot) — that talk to each other in channels and DMs
+over `chat:stream`. There's no orchestrator: announcements are grounded in real pipeline
+activity, and each persona replies with its **own system prompt that's genuinely told to
+collaborate**. Watch them live in the dashboard's **Team Chat** tab. Real LLM; falls back to
+short templated lines with no `OPENAI_API_KEY`.
+
+```bash
+python -m agent_chat.worker --loop   # peers post as real work happens; bounded by loop/cost guards
+```
+
 ## Quick start
 ```bash
 cp .env.example .env                      # set OPENAI_API_KEY (for moment detection)
@@ -48,6 +61,7 @@ pip install -r requirements.txt
 uvicorn engine.app:app --port 8001                       # Lane C
 uvicorn discovery_orchestrator.app:app --port 8000       # Lane A
 python -m performance.worker --loop                      # Lane B
+python -m agent_chat.worker --loop                       # Team chat (agent "Slack")
 cd dashboard && npm i && npm run dev                     # Lane D -> http://localhost:3000
 ```
 

@@ -2,19 +2,28 @@
 
 Sends a video to the REAL OpenShorts backend (the clip generator) and returns the rendered
 vertical clips. OpenShorts does all the heavy lifting (yt-dlp download -> faster-whisper ->
-moment detection -> 9:16 face-tracking reframe -> burned subtitles); we only submit, poll,
-and collect the served clip URLs. We do NOT reimplement any of that (the golden rule). The
-OpenShorts UI stays hidden — we use only its HTTP API + its static /videos mount.
+moment detection -> 9:16 face-tracking reframe -> burned captions); we only submit, poll,
+trigger captioning, and collect the served clip URLs. We do NOT reimplement any of that
+(the golden rule). The OpenShorts UI stays hidden — we use only its HTTP API + its static
+/videos mount.
 
-Verified contract:
+Verified contract (read from the container's app.py / subtitles.py):
   POST {API}/api/process
      header  X-Gemini-Key: <OpenAI key>   (OpenShorts' LLM layer is patched to OpenAI and
                                             uses this header value as the OpenAI key)
      json    {"url": "<youtube_url>", "acknowledged": true}
      -> {"job_id": "...", "status": "queued"}
+     NOTE: the /api/process pipeline reframes to 9:16 but does NOT burn captions — that is
+     a separate OpenShorts endpoint (below). So clips come out caption-less unless we ask.
   GET {API}/api/status/{job_id}
      -> {"status": queued|processing|completed|failed, "logs": [...], "result": {...}}
         result = {"clips": [{"video_url": "/videos/{job_id}/{file}", ...}], "cost_analysis": {}}
+  POST {API}/api/subtitle   (OpenShorts' OWN word-synced caption burner: generate_srt +
+                             burn_subtitles, ffmpeg `subtitles=` filter)
+     json    {"job_id": "...", "clip_index": <i>, ...style}
+     -> {"success": true, "new_video_url": "/videos/{job_id}/subtitled_{file}"}
+     Burns the stored transcript for that clip's window into the mp4 and rewrites the
+     clip's video_url to the subtitled file. We call this per clip after a job completes.
   Clips served (playable mp4) at {PUBLIC}/videos/{job_id}/{file}.
 """
 from __future__ import annotations
@@ -34,6 +43,16 @@ OPENSHORTS_API_URL = os.getenv("OPENSHORTS_API_URL", "http://localhost:8010").rs
 OPENSHORTS_PUBLIC_URL = os.getenv("OPENSHORTS_PUBLIC_URL", OPENSHORTS_API_URL).rstrip("/")
 DEFAULT_TIMEOUT_SECONDS = int(os.getenv("OPENSHORTS_TIMEOUT_SECONDS", "600"))
 ENGINE_PUBLIC_URL = os.getenv("ENGINE_PUBLIC_URL", "http://localhost:8001").rstrip("/")
+# Burned captions are an OpenShorts feature, but NOT part of its /api/process pipeline
+# (that only reframes to 9:16). OpenShorts burns word-synced captions via its dedicated
+# /api/subtitle endpoint, so after a job completes we trigger that per clip. Default ON so
+# every short ships with captions; gate stays so it can be disabled without a code change.
+BURN_CAPTIONS = os.getenv("OPENSHORTS_BURN_CAPTIONS", "true").lower() in (
+    "1", "true", "yes", "on",
+)
+# Each /api/subtitle call blocks until OpenShorts re-encodes (ffmpeg burn) that one clip,
+# so this timeout must comfortably cover a single 15–60s clip burn on CPU.
+CAPTION_BURN_TIMEOUT_SECONDS = int(os.getenv("OPENSHORTS_CAPTION_TIMEOUT_SECONDS", "300"))
 # We over-fetch a few near-equal replay peaks so the transcript can pick the punchiest
 # ``max_segments`` of them. This is selection only — we still download at most
 # ``max_segments`` windows (the budget is unchanged), so no extra network/disk.
@@ -355,12 +374,66 @@ def _f(*vals: object) -> float:
     return 0.0
 
 
+def _burn_captions(job_id: str, clips: list[dict], api_key: str, *,
+                   on_progress: ProgressCallback | None = None) -> int:
+    """Trigger OpenShorts' own caption burner on each rendered clip.
+
+    OpenShorts already produced the vertical clips and stored the real word-level transcript
+    in the job metadata. Its ``/api/subtitle`` endpoint regenerates an SRT for each clip's
+    window and ffmpeg-burns it (``subtitles.py`` -> ``burn_subtitles``), then rewrites that
+    clip's ``video_url`` to the ``subtitled_*`` file. We only call the endpoint — none of the
+    captioning is reimplemented here (golden rule). We send no style overrides, so OpenShorts
+    applies its proven default (white Verdana, black outline, bottom-aligned).
+
+    Mutates each clip's ``video_url`` in place on success. Per-clip failures are non-fatal:
+    a clip that can't be captioned (e.g. a music-only window with no transcript words) simply
+    keeps its un-captioned URL so the render still ships. Returns the number captioned.
+    """
+    headers = {"X-Gemini-Key": api_key}
+    total = len(clips)
+    burned = 0
+    with httpx.Client(timeout=CAPTION_BURN_TIMEOUT_SECONDS) as client:
+        for idx, clip in enumerate(clips):
+            if not clip.get("video_url"):
+                continue
+            _emit(on_progress, "analyzing",
+                  f"OpenShorts burning captions into clip {idx + 1}/{total}", 0.9)
+            try:
+                resp = client.post(
+                    f"{OPENSHORTS_API_URL}/api/subtitle",
+                    headers=headers,
+                    json={"job_id": job_id, "clip_index": idx},
+                )
+                resp.raise_for_status()
+                new_url = (resp.json() or {}).get("new_video_url")
+            except Exception as e:
+                coord("C", "error",
+                      f"OpenShorts caption burn failed (job {job_id} clip {idx}): {e}")
+                continue
+            if new_url:
+                clip["video_url"] = new_url
+                burned += 1
+    if burned:
+        coord("C", "milestone",
+              f"OpenShorts burned captions into {burned}/{total} clips for job {job_id}")
+    else:
+        coord("C", "error",
+              f"OpenShorts captioning produced no subtitled clips for job {job_id}")
+    return burned
+
+
 def generate_clips(youtube_url: str, *, title: str = "", topic: str = "",
                    timeout_s: int | None = None, poll_s: float = 5.0,
-                   on_progress: ProgressCallback | None = None) -> list[dict]:
+                   on_progress: ProgressCallback | None = None,
+                   on_submit: Callable[[str], None] | None = None) -> list[dict]:
     """Submit a video to OpenShorts and return rendered clips.
 
     Each returned dict: {clip_url, filename, start, end, hook, quote, title, score}.
+
+    ``on_submit`` (if given) is called with the OpenShorts ``job_id`` the moment OpenShorts
+    accepts the source — BEFORE the long render poll. The engine uses this to persist the
+    OpenShorts job id so a process restart mid-render can re-attach to the in-flight job via
+    :func:`collect_clips` instead of stranding it (which previously caused a false timeout).
     """
     timeout_s = timeout_s or DEFAULT_TIMEOUT_SECONDS
     api_key = os.getenv("OPENAI_API_KEY")
@@ -403,6 +476,40 @@ def generate_clips(youtube_url: str, *, title: str = "", topic: str = "",
         raise OpenShortsError("OpenShorts did not return a job_id")
     coord("C", "info", f"OpenShorts job {job_id} submitted; rendering {source_url}")
     _emit(on_progress, "fetching", f"OpenShorts job {job_id} accepted", 0.25)
+    # Persist the OpenShorts job id NOW (before the long poll) so a restart can resume it.
+    if on_submit:
+        try:
+            on_submit(job_id)
+        except Exception as e:  # persistence is best-effort; never block the render on it
+            coord("C", "error", f"on_submit hook failed for OpenShorts job {job_id}: {e}")
+
+    # Poll the freshly-submitted job to completion, burn captions, and collect the clips.
+    # collect_clips contains the entire post-submit path so the restart-resume code reuses
+    # the EXACT same collection + caption-burning logic (no divergence).
+    return collect_clips(
+        job_id, title=title, topic=topic, timeout_s=timeout_s, poll_s=poll_s,
+        on_progress=on_progress,
+    )
+
+
+def collect_clips(job_id: str, *, title: str = "", topic: str = "",
+                  timeout_s: int | None = None, poll_s: float = 5.0,
+                  on_progress: ProgressCallback | None = None) -> list[dict]:
+    """Poll an ALREADY-SUBMITTED OpenShorts job to completion and return its clips.
+
+    Shared by :func:`generate_clips` (fresh submit) and the engine restart-resume path. It
+    polls ``/api/status/{job_id}`` until completed/failed/timeout, burns word-synced captions
+    via ``/api/subtitle`` (when ``OPENSHORTS_BURN_CAPTIONS`` is on), and returns the rendered
+    clip dicts. Because OpenShorts keeps a completed job queryable, this works whether the
+    job is still rendering or already finished by the time we (re-)attach.
+
+    Each returned dict: {clip_url, filename, start, end, hook, quote, title, score}.
+    """
+    timeout_s = timeout_s or DEFAULT_TIMEOUT_SECONDS
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        coord("C", "info", "OpenShorts: no OPENAI_API_KEY; cannot collect clips")
+        raise OpenShortsError("OPENAI_API_KEY is required for OpenShorts")
 
     result = None
     deadline = time.time() + timeout_s
@@ -431,8 +538,16 @@ def generate_clips(youtube_url: str, *, title: str = "", topic: str = "",
         coord("C", "error", f"OpenShorts job {job_id} timed out after {timeout_s}s")
         raise OpenShortsError(f"OpenShorts timed out after {timeout_s}s")
 
+    # Burned captions: /api/process reframes but does NOT caption, so ask OpenShorts to burn
+    # word-synced subtitles into each clip via its /api/subtitle endpoint. This rewrites each
+    # captioned clip's video_url to the subtitled_* file (picked up when we build ``out``).
+    clips = result.get("clips") or []
+    if BURN_CAPTIONS and clips:
+        _emit(on_progress, "analyzing", "OpenShorts burning captions into clips", 0.88)
+        _burn_captions(job_id, clips, api_key, on_progress=on_progress)
+
     out: list[dict] = []
-    for c in result.get("clips") or []:
+    for c in clips:
         video_url = c.get("video_url") or ""
         if not video_url:
             continue

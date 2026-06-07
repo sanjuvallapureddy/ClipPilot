@@ -10,7 +10,9 @@ import {
   TrendingUp,
   Flame,
   Compass,
+  GraduationCap,
   BarChart3,
+  MessagesSquare,
   Settings,
   PanelLeftClose,
   PanelLeft,
@@ -38,8 +40,10 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "editing-studio", label: "Editing", icon: Wand2, accent: "text-fuchsia-400" },
   { id: "virality-predictor", label: "Virality", icon: TrendingUp, accent: "text-rose-400" },
   { id: "viral-moments", label: "Clips", icon: Flame, accent: "text-amber-400" },
+  { id: "self-learning", label: "Learning", icon: GraduationCap, accent: "text-emerald-400" },
   { id: "discovered-queue", label: "Discovery", icon: Compass, accent: "text-cyan-400" },
   { id: "analytics", label: "Analytics", icon: BarChart3, accent: "text-blue-400", route: "/analytics" },
+  { id: "team-chat", label: "Slack", icon: MessagesSquare, accent: "text-indigo-400", route: "/chat" },
 ];
 
 /** Section-switch items only (everything that isn't a standalone route). */
@@ -56,6 +60,7 @@ export default function Sidebar({ online }: { online: boolean | null }) {
   useEffect(() => {
     router.prefetch("/");
     router.prefetch("/analytics");
+    router.prefetch("/chat");
   }, [router]);
 
   const width = collapsed ? "w-16" : "w-56";

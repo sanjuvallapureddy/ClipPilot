@@ -141,7 +141,13 @@ class ClipResult(BaseModel):
 
 
 class Patterns(BaseModel):
-    """The `patterns:current` JSON blob written by Lane B, read by Lane A (§4)."""
+    """The `patterns:current` JSON blob written by Lane B, read by Lane A (§4).
+
+    The `hook_style` / `first_line_strategy` / `avoid_topics` / `insight_summary`
+    fields are written by the self-learning loop (Lane B's comparator) and flow
+    through `EngineConfig` into Lane C so a learned insight actually changes how the
+    next batch of moments/hooks is generated.
+    """
 
     winning_topics: list[str] = Field(default_factory=list)
     hook_templates: list[str] = Field(default_factory=list)
@@ -149,6 +155,11 @@ class Patterns(BaseModel):
     ideal_length_max: float = 45.0
     caption_style: str = "bold-keyword-highlight"
     summary: str = ""
+    # --- self-learning fields (set by performance/insights.py) ---
+    hook_style: str = ""  # e.g. "curiosity-gap", "contrarian", "bold-claim"
+    first_line_strategy: str = ""  # how the opening line should grab attention
+    avoid_topics: list[str] = Field(default_factory=list)  # underperformers to deprioritize
+    insight_summary: str = ""  # latest "why the winner won" explanation
     updated_at: float = Field(default_factory=_now)
 
     def to_json(self) -> str:
@@ -158,6 +169,43 @@ class Patterns(BaseModel):
     def from_json(cls, raw: str | bytes | None) -> "Patterns":
         if not raw:
             return cls()
+        if isinstance(raw, bytes):
+            raw = raw.decode()
+        return cls(**json.loads(raw))
+
+
+class LearningInsight(BaseModel):
+    """One self-learning insight: why a winning clip beat a losing one (§4).
+
+    Written by Lane B's comparator to `insights:latest` (JSON) and appended to
+    `insights:stream` (audit history). The `signal_source` field keeps us honest:
+    `real_views` once clips are actually posted, otherwise `predicted_virality`
+    (the real GPT virality score from the real transcript). Numbers are NEVER faked.
+    """
+
+    insight_id: str
+    winner_clip_id: str
+    loser_clip_id: str
+    signal_source: str = "predicted_virality"  # real_views | predicted_virality
+    winner_signal: float = 0.0
+    loser_signal: float = 0.0
+    why: str = ""  # comparative explanation
+    factors: list[str] = Field(default_factory=list)  # hook/length/topic/pacing/first-line
+    recommendations: list[str] = Field(default_factory=list)
+    applied: list[str] = Field(default_factory=list)  # recs auto-written to patterns:current
+    confidence: float = 0.5
+    created_at: float = Field(default_factory=_now)
+
+    def to_json(self) -> str:
+        return self.model_dump_json()
+
+    def to_redis(self) -> dict[str, str]:
+        return _flatten(self.model_dump())
+
+    @classmethod
+    def from_json(cls, raw: str | bytes | None) -> Optional["LearningInsight"]:
+        if not raw:
+            return None
         if isinstance(raw, bytes):
             raw = raw.decode()
         return cls(**json.loads(raw))
@@ -199,6 +247,10 @@ class EngineConfig(BaseModel):
     aspect_ratio: str = "9:16"
     caption_style: str = "bold-keyword-highlight"
     hook_templates: list[str] = Field(default_factory=list)
+    # --- learned signals from patterns:current (set by the self-learning loop) ---
+    hook_style: str = ""  # learned winning hook style for the moment-detection prompt
+    first_line_strategy: str = ""  # learned opening-line strategy
+    avoid_topics: list[str] = Field(default_factory=list)  # deprioritized underperformers
     scoring_provider: str = "openai"  # openai | gemini
     scoring_factors: list[str] = Field(
         default_factory=lambda: [
@@ -246,3 +298,35 @@ class CoordMessage(BaseModel):
 
     def to_redis(self) -> dict[str, str]:
         return _flatten(self.model_dump())
+
+
+class ChatMessage(BaseModel):
+    """A team-chat message on `chat:stream` — the agent "Slack" layer (§6).
+
+    Channels and DMs share one stream; a DM channel id looks like `dm:cutter-scout`
+    (see `keys.dm_channel`). `mentions` lets the agent_chat worker route @-replies
+    between peers. `kind="event"` marks messages mirrored from real pipeline activity.
+    """
+
+    author: str  # agent id, e.g. "scout" (see keys.AGENTS)
+    channel: str = "general"  # channel name or "dm:<a>-<b>"
+    text: str = ""
+    mentions: list[str] = Field(default_factory=list)  # agent ids, e.g. ["cutter"]
+    in_reply_to: str = ""  # stream id of the message this replies to (thread root)
+    kind: str = "chat"  # chat | event
+    ts: float = Field(default_factory=_now)
+
+    def to_redis(self) -> dict[str, str]:
+        return _flatten(self.model_dump())
+
+    @classmethod
+    def from_redis(cls, d: dict[str, Any]) -> "ChatMessage":
+        d = {k: (v.decode() if isinstance(v, bytes) else v) for k, v in d.items()}
+        m = d.get("mentions")
+        if isinstance(m, str):
+            try:
+                d["mentions"] = json.loads(m) if m else []
+            except Exception:
+                d["mentions"] = [x for x in m.split(",") if x]
+        d["ts"] = float(d.get("ts") or _now())
+        return cls(**d)

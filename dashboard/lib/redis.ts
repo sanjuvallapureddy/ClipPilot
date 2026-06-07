@@ -22,6 +22,9 @@ export const KEYS = {
   JOBS_STREAM: "jobs:stream",
   PATTERNS_CURRENT: "patterns:current",
   RESULTS_SET: "results:all",
+  INSIGHTS_LATEST: "insights:latest",
+  INSIGHTS_STREAM: "insights:stream",
+  CHAT_STREAM: "chat:stream",
 } as const;
 
 export const resultKey = (id: string) => `results:${id}`;

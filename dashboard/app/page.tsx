@@ -15,12 +15,15 @@ import {
   BarChart3,
   Trophy,
   TrendingUp,
+  GraduationCap,
+  Check,
 } from "lucide-react";
 import { getClipPredictions } from "@/lib/virality-mock";
 import LivePipeline from "@/components/LivePipeline";
 import DiscoveredQueue from "@/components/DiscoveredQueue";
 import ClipsGallery from "@/components/ClipsGallery";
 import Analytics from "@/components/Analytics";
+import SelfLearning from "@/components/SelfLearning";
 import ActivityTicker from "@/components/ActivityTicker";
 import CommandMenu from "@/components/CommandMenu";
 import YouTubeConnect from "@/components/YouTubeConnect";
@@ -476,6 +479,51 @@ export default function Page() {
     ),
   });
 
+  useCopilotAction({
+    name: "explainWhyItWon",
+    description:
+      "Explain WHY the best-performing clip beat the weakest one and what the self-learning " +
+      "loop auto-applied to future clips. Use when asked why a video did better, what " +
+      "ClipPilot learned, or how it is improving itself over time.",
+    parameters: [],
+    handler: async () => {
+      bump();
+      return await fetch("/api/insights").then((r) => r.json());
+    },
+    render: ({ status: s, result }) => (
+      <Card className="my-1">
+        <div className="flex items-center gap-2 pb-3">
+          <GraduationCap size={14} className="text-emerald-400" />
+          <span className="text-xs font-medium uppercase tracking-wider text-neutral-400">
+            Self-learning
+          </span>
+        </div>
+        {s === "complete" && result?.latest ? (
+          <div className="flex flex-col gap-2 text-xs">
+            <p className="leading-relaxed text-neutral-300">{result.latest.why}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {(result.latest.applied || []).map((a: string, i: number) => (
+                <Badge key={i} className="border-emerald-900/60 text-emerald-300">
+                  <Check size={10} />
+                  {a}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        ) : s === "complete" ? (
+          <div className="text-xs text-neutral-500">
+            No comparison yet — the loop needs 2+ scored clips. Run the pipeline a few times.
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-xs text-neutral-500">
+            <Loader2 size={12} className="animate-spin" />
+            Comparing winners vs losers…
+          </div>
+        )}
+      </Card>
+    ),
+  });
+
   const activeLabel = NAV_ITEMS.find((n) => n.id === activeSection)?.label ?? "Overview";
 
   return (
@@ -637,6 +685,12 @@ export default function Page() {
                 <Analytics refreshKey={refreshKey} />
               </Reveal>
             </>
+          )}
+
+          {activeSection === "self-learning" && (
+            <Reveal>
+              <SelfLearning refreshKey={refreshKey} />
+            </Reveal>
           )}
 
           {activeSection === "discovered-queue" && (

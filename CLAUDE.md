@@ -23,6 +23,10 @@ without logging it to `coord:log` and here.
 - **C — `engine/`** (FastAPI): `POST /process {youtube_url, config}` → `{job_id}`;
   `GET /status/{job_id}`. Real pipeline: yt-dlp transcript → GPT moment detection.
 - **D — `dashboard/`** (Next.js 14 + CopilotKit + AG-UI): mission control.
+- **Team chat — `agent_chat/`** (Python worker): a peer "Slack" layer. The four lanes show
+  up as named teammates (Scout/Cutter/Coach/Pilot) that converse in channels + DMs over
+  `chat:stream` — no orchestrator of the conversation; each persona replies with its own
+  system prompt (genuinely told to collaborate). Real LLM; templated fallback without a key.
 
 ## The Redis contract — the ONLY interface between lanes
 Source of truth: `shared/keys.py` (+ `shared/schemas.py`, mirrored in `shared/types.ts`).
@@ -35,10 +39,13 @@ Source of truth: `shared/keys.py` (+ `shared/schemas.py`, mirrored in `shared/ty
 | `jobs:stream` | Stream of status changes | A,C → D |
 | `results:{clip_id}` | Hash (quote/hook/start/end/score; render_status/post_status; metrics when posted) | C,D → B |
 | `results:all` | Set of clip_ids | C,D → B |
-| `patterns:current` | JSON (winning topics/hooks/length/caption) | B → A |
+| `patterns:current` | JSON (winning topics/hooks/length/caption + self-learned hook_style/first_line_strategy/avoid_topics/insight_summary) | B → A |
 | `patterns:variants:{topic}` | JSON variant configs | B → C,A |
+| `insights:latest` | JSON `LearningInsight` (why winner beat loser; signal_source=real_views\|predicted_virality; recommendations; applied) | B → D |
+| `insights:stream` | Stream of `LearningInsight` (self-learning audit history) | B → D |
 | `trend:{id}` + `idx:trends` | JSON + RediSearch HNSW COSINE 1536-dim (text-embedding-3-small) | A |
 | `coord:log` | Stream (multiagent coordination) | all |
+| `chat:stream` | Stream of `ChatMessage` — team "Slack": channels + DMs, 4 lanes as peer agents (Scout/Cutter/Coach/Pilot) | all (driven by `agent_chat`) |
 
 OpenShorts API (C defines, A calls): `POST /process {youtube_url, config}` → `{job_id}`;
 `GET /status/{job_id}` → `{stage, progress, clips, ...}`.
@@ -61,6 +68,26 @@ real transcript (yt-dlp captions / Whisper) + GPT (needs `OPENAI_API_KEY`). Rend
 3. ✅ Real engine (transcript → GPT moments).
 4. ✅ Dashboard tailing live jobs + copilot actions.
 5. ✅ Lane B real metrics + `patterns:current`; loop closes into Lane A.
+6. ✅ Self-learning loop (Lane B v2): `performance/insights.py` ranks clips by the best
+   REAL signal (real views once posted, else GPT predicted virality), compares winner vs
+   loser, explains why, and auto-applies the lesson into `patterns:current` (honored by
+   Lane C's moment-detection prompt). Always on every `worker.cycle()`. Surfaced in the
+   dashboard "Learning" tab + `explainWhyItWon` copilot action.
+7. ✅ Team chat (agent "Slack", `agent_chat/`): the four lanes converse as peers over
+   `chat:stream` (channels + DMs, @mentions). Deterministic, grounded announcements from real
+   contract activity + LLM peer replies driven by per-persona system prompts that explicitly
+   ask them to collaborate. Read-only "Team Chat" tab in the dashboard; loop/cost guards;
+   works offline via templated fallback.
+8. ✅ Clip titles + on-video title headline (Lane C): every clip gets ONE GPT-generated
+   title (`engine/titles.py`) used in TWO places — burned across the top of the vertical
+   short so the audience sees it (`engine/overlay.py`: Pillow renders the headline to a
+   transparent PNG, ffmpeg composites it with `overlay`; NOT a reimplementation of
+   OpenShorts' caption burner — cutting/reframing/word-synced captions stay in OpenShorts)
+   AND as the YouTube video title at upload. The titled short is written to the engine's
+   served `media/` dir and `results:{clip_id}.title` + `.clip_url` point at it; the dashboard
+   "Upload to YouTube" publishes that real titled file with that title (no contract keys
+   changed — `title`/`clip_url` were already in the contract). Burn is best-effort: needs
+   ffmpeg/ffprobe, degrades to the un-titled OpenShorts clip otherwise.
 
 ## Sponsors (use meaningfully): OpenAI · Redis · CopilotKit · (OpenShorts/Upload-Post for render+post).
 
@@ -72,5 +99,6 @@ pip install -r requirements.txt
 uvicorn engine.app:app --port 8001                  # Lane C
 uvicorn discovery_orchestrator.app:app --port 8000  # Lane A
 python -m performance.worker --loop                 # Lane B
+python -m agent_chat.worker --loop                  # Team chat (agent "Slack")
 cd dashboard && npm i && npm run dev                 # Lane D -> localhost:3000
 ```

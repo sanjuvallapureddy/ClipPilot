@@ -50,13 +50,21 @@ def read_patterns(r) -> Patterns:
 
 
 def build_config(patterns: Patterns) -> EngineConfig:
-    """Translate learned patterns -> engine config. This is the learning feedback edge."""
+    """Translate learned patterns -> engine config. This is the learning feedback edge.
+
+    The self-learning fields (hook_style/first_line_strategy/avoid_topics) ride along so
+    Lane C's moment detection actually applies what the comparator learned, not just clip
+    length.
+    """
     return EngineConfig(
         num_clips=int(os.getenv("CLIPS_PER_EPISODE", "3")),
         min_length=patterns.ideal_length_min,
         max_length=patterns.ideal_length_max,
         caption_style=patterns.caption_style,
         hook_templates=patterns.hook_templates,
+        hook_style=patterns.hook_style,
+        first_line_strategy=patterns.first_line_strategy,
+        avoid_topics=patterns.avoid_topics,
         scoring_provider=os.getenv("ENGINE_SCORING_PROVIDER", "openai"),
         topic_bias=patterns.winning_topics,
     )

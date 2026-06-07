@@ -20,6 +20,7 @@ from .schemas import (  # noqa: F401,E402
     EngineStatus,
     Job,
     JobEvent,
+    LearningInsight,
     Patterns,
     ProcessRequest,
     ProcessResponse,

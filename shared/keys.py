@@ -43,6 +43,11 @@ def variants_key(topic: str) -> str:
     return f"{PATTERNS_VARIANTS_PREFIX}{topic}"
 
 
+# --- Self-learning insights (Lane B writes; D reads) ---
+INSIGHTS_LATEST = "insights:latest"  # JSON string — most recent LearningInsight
+INSIGHTS_STREAM = "insights:stream"  # Stream — audit history of every insight
+
+
 # --- Trends vector index (Lane A) ---
 TREND_PREFIX = "trend:"  # Hash with `vector` field; key = f"trend:{id}"
 TRENDS_INDEX = "idx:trends"  # RediSearch vector index name
@@ -56,6 +61,30 @@ def trend_key(trend_id: str) -> str:
 
 # --- Coordination (all lanes) ---
 COORD_LOG = "coord:log"  # Stream
+
+# --- Team chat / agent "Slack" (all lanes; the agent_chat worker drives it) ---
+# A richer, human-readable layer on top of coord:log: the four lanes show up as named
+# peer teammates that converse in channels and DMs. There is NO orchestrator of the
+# conversation — every agent is a peer. Any change here is a contract change, so post it
+# to coord:log and update CLAUDE.md (§6).
+CHAT_STREAM = "chat:stream"  # Stream of ChatMessage (see shared/schemas.py)
+CHANNELS = ["general", "discovery", "editing", "performance", "activity"]
+
+# Agent identities. `lane` ties a persona back to the contract lane it speaks for.
+AGENTS: dict[str, dict[str, str]] = {
+    "scout": {"name": "Scout", "emoji": "🛰️", "lane": "A", "role": "discovery"},
+    "cutter": {"name": "Cutter", "emoji": "✂️", "lane": "C", "role": "engine"},
+    "coach": {"name": "Coach", "emoji": "📈", "lane": "B", "role": "performance"},
+    "pilot": {"name": "Pilot", "emoji": "🎬", "lane": "D", "role": "copilot"},
+}
+# Reverse lookup (lane letter -> agent id) for code that only knows its lane.
+LANE_TO_AGENT = {meta["lane"]: aid for aid, meta in AGENTS.items()}
+
+
+def dm_channel(a: str, b: str) -> str:
+    """A DM rides the same stream as channels, under a stable sorted id."""
+    return "dm:" + "-".join(sorted([a, b]))
+
 
 # --- Consumer groups ---
 ORCHESTRATOR_GROUP = "orchestrator"

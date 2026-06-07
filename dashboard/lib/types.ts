@@ -66,4 +66,59 @@ export interface Patterns {
   ideal_length_max: number;
   caption_style: string;
   summary: string;
+  // self-learning fields (set by performance/insights.py)
+  hook_style?: string;
+  first_line_strategy?: string;
+  avoid_topics?: string[];
+  insight_summary?: string;
 }
+
+// Mirror of shared/schemas.py LearningInsight — one self-learning comparison.
+export interface LearningInsight {
+  insight_id: string;
+  winner_clip_id: string;
+  loser_clip_id: string;
+  signal_source: string; // real_views | predicted_virality
+  winner_signal: number;
+  loser_signal: number;
+  why: string;
+  factors: string[];
+  recommendations: string[];
+  applied: string[];
+  confidence: number;
+  created_at: number;
+}
+
+// --- Team chat (agent "Slack") — mirror of shared/schemas.py ChatMessage ---
+export interface ChatMessage {
+  id?: string; // redis stream id, attached by the SSE route
+  author: string; // agent id (see AGENTS)
+  channel: string; // channel name or "dm:<a>-<b>"
+  text: string;
+  mentions: string[]; // agent ids
+  in_reply_to: string; // thread root stream id
+  kind: string; // chat | event
+  ts: number;
+}
+
+export interface AgentMeta {
+  name: string;
+  emoji: string;
+  lane: string;
+  role: string;
+}
+
+export const AGENTS: Record<string, AgentMeta> = {
+  scout: { name: "Scout", emoji: "🛰️", lane: "A", role: "discovery" },
+  cutter: { name: "Cutter", emoji: "✂️", lane: "C", role: "engine" },
+  coach: { name: "Coach", emoji: "📈", lane: "B", role: "performance" },
+  pilot: { name: "Pilot", emoji: "🎬", lane: "D", role: "copilot" },
+};
+
+export const CHANNELS = [
+  "general",
+  "discovery",
+  "editing",
+  "performance",
+  "activity",
+] as const;

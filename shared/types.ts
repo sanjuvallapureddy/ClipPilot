@@ -7,7 +7,10 @@ export const KEYS = {
   JOBS_STREAM: "jobs:stream",
   PATTERNS_CURRENT: "patterns:current",
   RESULTS_SET: "results:all",
+  INSIGHTS_LATEST: "insights:latest",
+  INSIGHTS_STREAM: "insights:stream",
   COORD_LOG: "coord:log",
+  CHAT_STREAM: "chat:stream",
   TRENDS_INDEX: "idx:trends",
 } as const;
 
@@ -95,7 +98,27 @@ export interface Patterns {
   ideal_length_max: number;
   caption_style: string;
   summary: string;
+  // self-learning fields (set by performance/insights.py)
+  hook_style: string;
+  first_line_strategy: string;
+  avoid_topics: string[];
+  insight_summary: string;
   updated_at: number;
+}
+
+export interface LearningInsight {
+  insight_id: string;
+  winner_clip_id: string;
+  loser_clip_id: string;
+  signal_source: string; // real_views | predicted_virality
+  winner_signal: number;
+  loser_signal: number;
+  why: string;
+  factors: string[];
+  recommendations: string[];
+  applied: string[]; // recs auto-written to patterns:current
+  confidence: number;
+  created_at: number;
 }
 
 export interface Variant {
@@ -118,3 +141,38 @@ export interface CoordMessage {
   message: string;
   ts: number;
 }
+
+// ----- Team chat / agent "Slack" (mirror of shared/schemas.py ChatMessage) -----
+export interface ChatMessage {
+  id?: string; // redis stream id, attached when read back by the dashboard SSE route
+  author: string; // agent id (see AGENTS)
+  channel: string; // channel name or "dm:<a>-<b>"
+  text: string;
+  mentions: string[]; // agent ids
+  in_reply_to: string; // thread root stream id
+  kind: string; // chat | event
+  ts: number;
+}
+
+export interface AgentMeta {
+  name: string;
+  emoji: string;
+  lane: string; // A | B | C | D
+  role: string;
+}
+
+// Mirror of keys.AGENTS — the four peers (no orchestrator of the conversation).
+export const AGENTS: Record<string, AgentMeta> = {
+  scout: { name: "Scout", emoji: "🛰️", lane: "A", role: "discovery" },
+  cutter: { name: "Cutter", emoji: "✂️", lane: "C", role: "engine" },
+  coach: { name: "Coach", emoji: "📈", lane: "B", role: "performance" },
+  pilot: { name: "Pilot", emoji: "🎬", lane: "D", role: "copilot" },
+};
+
+export const CHANNELS = [
+  "general",
+  "discovery",
+  "editing",
+  "performance",
+  "activity",
+] as const;

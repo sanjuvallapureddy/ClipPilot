@@ -5,3 +5,7 @@ pydantic==2.9.2
 openai==1.51.0
 httpx==0.27.2
 yt-dlp>=2026.03.17
+# Title headline overlay (engine/overlay.py): render the title to a transparent PNG with
+# Pillow (its wheel bundles freetype, so text renders even when ffmpeg lacks libfreetype),
+# then composite with ffmpeg's overlay filter. >=10.1 for the scalable default font.
+Pillow>=10.1.0

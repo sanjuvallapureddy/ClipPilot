@@ -95,9 +95,20 @@ export default function ClipDrawer({
                 </div>
               )}
 
-              <h3 className="text-lg font-semibold leading-snug tracking-tight text-neutral-100">
-                {clip.hook}
-              </h3>
+              <div>
+                <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-widest text-neutral-500">
+                  <YouTubeGlyph size={11} className="text-red-500" />
+                  Title — burned on video & used on YouTube
+                </div>
+                <h3 className="text-lg font-semibold leading-snug tracking-tight text-neutral-100">
+                  {clip.title || clip.hook}
+                </h3>
+                {clip.hook && clip.hook !== clip.title && (
+                  <p className="mt-1.5 text-[13px] leading-snug text-neutral-400">
+                    {clip.hook}
+                  </p>
+                )}
+              </div>
 
               <div className="flex flex-wrap items-center gap-1.5">
                 {clip.topic && <Badge>{clip.topic}</Badge>}

@@ -40,6 +40,14 @@ services:
     depends_on:
       - redis
 
+  agent_chat:                          # Team chat — agent "Slack" (peer conversation)
+    build: ./agent_chat
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - redis
+
   dashboard:                           # Lane D
     build: ./dashboard
     env_file: .env

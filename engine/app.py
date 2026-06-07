@@ -31,6 +31,13 @@ async def _startup() -> None:
     # Optional Weave/W&B tracing — no-op unless WEAVE_PROJECT + WANDB_API_KEY are set.
     observability.init()
     coord("C", "milestone", "engine up (real transcript + GPT moment detection)")
+    # Recover any render that was in flight when this process last restarted: re-attach to the
+    # OpenShorts job so it reaches a real terminal state instead of a false engine timeout.
+    # Safe no-op when there are no orphaned jobs.
+    try:
+        await pipeline.reconcile_orphans()
+    except Exception as e:  # never let recovery break engine startup
+        coord("C", "error", f"startup reconcile failed: {e}")
 
 
 @app.get("/health")
