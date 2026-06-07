@@ -24,13 +24,9 @@ import ActivityTicker from "@/components/ActivityTicker";
 import CommandMenu from "@/components/CommandMenu";
 import YouTubeConnect from "@/components/YouTubeConnect";
 import ManualUpload from "@/components/ManualUpload";
-<<<<<<< HEAD
 import RecentClipHistory from "@/components/RecentClipHistory";
-import Sidebar, { NAV_ITEMS } from "@/components/Sidebar";
-=======
 import MockEditingStudio from "@/components/MockEditingStudio";
 import ViralityPredictor from "@/components/ViralityPredictor";
->>>>>>> f2f41d86084163dac12075d9fc4b9bebf03136b3
 import Aurora from "@/components/Aurora";
 import ScrollProgress from "@/components/ScrollProgress";
 import { motion } from "framer-motion";

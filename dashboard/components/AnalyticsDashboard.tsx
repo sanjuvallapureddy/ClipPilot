@@ -8,10 +8,15 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Pie,
+  PieChart,
   ResponsiveContainer,
+  Scatter,
+  ScatterChart,
   Tooltip as RTooltip,
   XAxis,
   YAxis,
+  ZAxis,
 } from "recharts";
 import {
   Sparkles,
@@ -25,25 +30,50 @@ import {
   Trophy,
   RefreshCw,
 } from "lucide-react";
+import WeaveObservability from "@/components/WeaveObservability";
 import type { Patterns } from "@/lib/types";
 
-// ---- palette (color-coded, vivid but Linear/Vercel-calm) --------------------
+// ---- palette ----------------------------------------------------------------
+// A single cohesive cool ramp (violet → teal) with one restrained warm accent.
+// Soft Tailwind-400 tones read as "premium/analytical" on black instead of the
+// saturated rainbow that looked cheap.
 const PALETTE = [
-  "#8b5cf6", // violet
-  "#3b82f6", // blue
-  "#22d3ee", // cyan
-  "#34d399", // emerald
-  "#f59e0b", // amber
-  "#fb7185", // rose
-  "#e879f9", // fuchsia
-  "#a3e635", // lime
+  "#a78bfa", // violet-400
+  "#818cf8", // indigo-400
+  "#60a5fa", // blue-400
+  "#38bdf8", // sky-400
+  "#22d3ee", // cyan-400
+  "#2dd4bf", // teal-400
+  "#34d399", // emerald-400
+  "#fbbf24", // amber-400 (lone warm accent)
 ];
 
-// low score -> rose, mid -> amber, high -> emerald
+// Endpoints of the brand ramp, reused for smooth interpolated fills.
+const RAMP_LO = "#818cf8"; // indigo-400
+const RAMP_HI = "#2dd4bf"; // teal-400
+
+function hexToRgb(h: string) {
+  const n = parseInt(h.slice(1), 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+// Smooth color along the brand ramp for t in [0,1] — gives charts an intentional
+// gradient instead of clashing categorical hues.
+function ramp(t: number, lo = RAMP_LO, hi = RAMP_HI) {
+  const c = Math.max(0, Math.min(1, t));
+  const a = hexToRgb(lo);
+  const b = hexToRgb(hi);
+  const r = Math.round(a.r + (b.r - a.r) * c);
+  const g = Math.round(a.g + (b.g - a.g) * c);
+  const bl = Math.round(a.b + (b.b - a.b) * c);
+  return `rgb(${r}, ${g}, ${bl})`;
+}
+
+// Virality semantic (low → high) in soft, non-garish tones.
 function scoreColor(score: number) {
-  if (score >= 0.66) return "#34d399";
-  if (score >= 0.33) return "#f59e0b";
-  return "#fb7185";
+  if (score >= 0.66) return "#34d399"; // emerald-400
+  if (score >= 0.33) return "#fbbf24"; // amber-400
+  return "#f87171"; // red-400 (soft, not neon rose)
 }
 
 interface ClipLite {
@@ -175,6 +205,48 @@ export default function AnalyticsDashboard() {
     });
   }, [clips]);
 
+  // Sweet-spot scatter: every detected moment as (length, virality). Real per-clip data.
+  const scatterData = useMemo(
+    () =>
+      clips
+        .filter((c) => c.length > 0)
+        .map((c) => ({ length: c.length, virality: c.engagement, hook: c.hook || c.title })),
+    [clips],
+  );
+
+  // Pipeline composition (share of where moments currently sit). Real counts.
+  const composition = useMemo(() => {
+    const moments = data?.totals?.moments ?? 0;
+    const rendered = data?.totals?.rendered ?? 0;
+    const posted = data?.totals?.posted ?? 0;
+    return [
+      { name: "Detected only", value: Math.max(0, moments - rendered), color: "#818cf8" },
+      { name: "Rendered", value: Math.max(0, rendered - posted), color: "#22d3ee" },
+      { name: "Posted", value: posted, color: "#34d399" },
+    ].filter((s) => s.value > 0);
+  }, [data?.totals?.moments, data?.totals?.rendered, data?.totals?.posted]);
+
+  // Average virality per length band — answers "which clip length actually scores best".
+  const viralityByLength = useMemo(() => {
+    const bands = [
+      { bucket: "0–15s", lo: 0, hi: 15 },
+      { bucket: "15–30s", lo: 15, hi: 30 },
+      { bucket: "30–45s", lo: 30, hi: 45 },
+      { bucket: "45–60s", lo: 45, hi: 60 },
+      { bucket: "60s+", lo: 60, hi: Infinity },
+    ];
+    return bands
+      .map((b) => {
+        const inBand = clips.filter((c) => c.length >= b.lo && c.length < b.hi);
+        const avg =
+          inBand.length > 0
+            ? inBand.reduce((a, c) => a + c.engagement, 0) / inBand.length
+            : 0;
+        return { bucket: b.bucket, avg: Number(avg.toFixed(3)), n: inBand.length };
+      })
+      .filter((b) => b.n > 0);
+  }, [clips]);
+
   const t = data?.totals;
 
   return (
@@ -188,20 +260,23 @@ export default function AnalyticsDashboard() {
         </div>
       )}
 
+      {/* Weave observability — the AI traces behind every number below */}
+      <WeaveObservability totalMoments={t?.moments ?? 0} />
+
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        <Kpi label="Moments" value={t?.moments ?? 0} icon={Sparkles} color="#8b5cf6" />
+        <Kpi label="Moments" value={t?.moments ?? 0} icon={Sparkles} color="#a78bfa" />
         <Kpi
           label="Avg Virality"
           value={(t?.avgVirality ?? 0).toFixed(2)}
           icon={Activity}
-          color="#3b82f6"
+          color="#60a5fa"
         />
         <Kpi
           label="Top Virality"
           value={(t?.topVirality ?? 0).toFixed(2)}
           icon={Flame}
-          color="#f59e0b"
+          color="#fbbf24"
         />
         <Kpi label="Rendered" value={t?.rendered ?? 0} icon={Layers} color="#22d3ee" />
         <Kpi label="Posted" value={t?.posted ?? 0} icon={Send} color="#34d399" />
@@ -209,7 +284,7 @@ export default function AnalyticsDashboard() {
           label="Total Views"
           value={(t?.views ?? 0).toLocaleString()}
           icon={Eye}
-          color="#e879f9"
+          color="#38bdf8"
         />
       </div>
 
@@ -227,9 +302,13 @@ export default function AnalyticsDashboard() {
               <XAxis dataKey="bucket" tick={{ fill: "#737373", fontSize: 10 }} tickLine={false} axisLine={{ stroke: "#262626" }} />
               <YAxis allowDecimals={false} tick={{ fill: "#737373", fontSize: 10 }} tickLine={false} axisLine={false} />
               <RTooltip contentStyle={tooltipStyle} labelStyle={{ color: "#a3a3a3" }} cursor={{ fill: "#ffffff08" }} />
-              <Bar dataKey="count" radius={[4, 4, 0, 0]} isAnimationActive animationDuration={900}>
+              <Bar dataKey="count" radius={[5, 5, 0, 0]} isAnimationActive animationDuration={900}>
                 {(data?.scoreBuckets ?? []).map((b, i) => (
-                  <Cell key={b.bucket} fill={scoreColor(i / 10 + 0.05)} />
+                  <Cell
+                    key={b.bucket}
+                    fill={ramp((data?.scoreBuckets?.length ?? 1) <= 1 ? 0.5 : i / 9)}
+                    fillOpacity={0.92}
+                  />
                 ))}
               </Bar>
             </BarChart>
@@ -312,12 +391,16 @@ export default function AnalyticsDashboard() {
               <RTooltip contentStyle={tooltipStyle} labelStyle={{ color: "#a3a3a3" }} cursor={{ fill: "#ffffff08" }} />
               <Bar
                 dataKey={topicMetric}
-                radius={[0, 4, 4, 0]}
+                radius={[0, 5, 5, 0]}
                 isAnimationActive
                 animationDuration={900}
               >
                 {topicSeries.map((s, i) => (
-                  <Cell key={s.topic} fill={PALETTE[i % PALETTE.length]} />
+                  <Cell
+                    key={s.topic}
+                    fill={ramp(topicSeries.length <= 1 ? 0 : i / (topicSeries.length - 1))}
+                    fillOpacity={0.92}
+                  />
                 ))}
               </Bar>
             </BarChart>
@@ -331,9 +414,13 @@ export default function AnalyticsDashboard() {
               <XAxis dataKey="bucket" tick={{ fill: "#737373", fontSize: 10 }} tickLine={false} axisLine={{ stroke: "#262626" }} />
               <YAxis allowDecimals={false} tick={{ fill: "#737373", fontSize: 10 }} tickLine={false} axisLine={false} />
               <RTooltip contentStyle={tooltipStyle} labelStyle={{ color: "#a3a3a3" }} cursor={{ fill: "#ffffff08" }} />
-              <Bar dataKey="count" radius={[4, 4, 0, 0]} isAnimationActive animationDuration={900}>
+              <Bar dataKey="count" radius={[5, 5, 0, 0]} isAnimationActive animationDuration={900}>
                 {(data?.lengthBuckets ?? []).map((b, i) => (
-                  <Cell key={b.bucket} fill={PALETTE[(i + 2) % PALETTE.length]} />
+                  <Cell
+                    key={b.bucket}
+                    fill={ramp((data?.lengthBuckets?.length ?? 1) <= 1 ? 0.5 : i / ((data?.lengthBuckets?.length ?? 2) - 1), "#38bdf8", "#2dd4bf")}
+                    fillOpacity={0.92}
+                  />
                 ))}
               </Bar>
             </BarChart>
@@ -341,7 +428,127 @@ export default function AnalyticsDashboard() {
         </ChartCard>
       </div>
 
-      {/* Row 3: reach over time (real, honest empty) */}
+      {/* Row 3: sweet-spot scatter (virality vs length) */}
+      <ChartCard
+        title="Virality vs clip length"
+        hint="each dot is one detected moment — find the sweet spot"
+        icon={Sparkles}
+        empty={scatterData.length === 0}
+      >
+        <ResponsiveContainer width="100%" height={260}>
+          <ScatterChart margin={{ top: 10, right: 16, left: -10, bottom: 4 }}>
+            <CartesianGrid stroke="#171717" />
+            <XAxis
+              type="number"
+              dataKey="length"
+              name="Length"
+              unit="s"
+              tick={{ fill: "#737373", fontSize: 10 }}
+              tickLine={false}
+              axisLine={{ stroke: "#262626" }}
+            />
+            <YAxis
+              type="number"
+              dataKey="virality"
+              name="Virality"
+              domain={[0, 1]}
+              tick={{ fill: "#737373", fontSize: 10 }}
+              tickLine={false}
+              axisLine={false}
+            />
+            <ZAxis range={[60, 60]} />
+            <RTooltip
+              contentStyle={tooltipStyle}
+              labelStyle={{ color: "#a3a3a3" }}
+              cursor={{ stroke: "#ffffff14" }}
+              formatter={(v: number, n: string) =>
+                n === "Virality" ? [v.toFixed(3), n] : [`${v}s`, n]
+              }
+            />
+            <Scatter data={scatterData} isAnimationActive animationDuration={700}>
+              {scatterData.map((d, i) => (
+                <Cell key={i} fill={scoreColor(d.virality)} fillOpacity={0.75} />
+              ))}
+            </Scatter>
+          </ScatterChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      {/* Row 4: pipeline composition (donut) + avg virality by length */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1.4fr]">
+        <ChartCard
+          title="Pipeline composition"
+          hint="share of moments by stage"
+          icon={Layers}
+          empty={composition.length === 0}
+        >
+          <div className="flex h-[240px] items-center">
+            <ResponsiveContainer width="60%" height={220}>
+              <PieChart>
+                <Pie
+                  data={composition}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={52}
+                  outerRadius={84}
+                  paddingAngle={3}
+                  stroke="#0a0a0a"
+                  strokeWidth={2}
+                  isAnimationActive
+                  animationDuration={800}
+                >
+                  {composition.map((s) => (
+                    <Cell key={s.name} fill={s.color} />
+                  ))}
+                </Pie>
+                <RTooltip contentStyle={tooltipStyle} labelStyle={{ color: "#a3a3a3" }} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="flex flex-1 flex-col gap-2.5">
+              {composition.map((s) => (
+                <div key={s.name} className="flex items-center gap-2 text-xs">
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                    style={{ background: s.color }}
+                  />
+                  <span className="flex-1 text-neutral-400">{s.name}</span>
+                  <span className="font-medium tabular-nums text-neutral-200">{s.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </ChartCard>
+
+        <ChartCard
+          title="Average virality by clip length"
+          hint="which length band scores best"
+          icon={Clock}
+          empty={viralityByLength.length === 0}
+        >
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={viralityByLength} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+              <CartesianGrid stroke="#171717" vertical={false} />
+              <XAxis dataKey="bucket" tick={{ fill: "#737373", fontSize: 10 }} tickLine={false} axisLine={{ stroke: "#262626" }} />
+              <YAxis domain={[0, 1]} tick={{ fill: "#737373", fontSize: 10 }} tickLine={false} axisLine={false} />
+              <RTooltip
+                contentStyle={tooltipStyle}
+                labelStyle={{ color: "#a3a3a3" }}
+                cursor={{ fill: "#ffffff08" }}
+                formatter={(v: number) => [v.toFixed(3), "Avg virality"]}
+              />
+              <Bar dataKey="avg" radius={[5, 5, 0, 0]} isAnimationActive animationDuration={900}>
+                {viralityByLength.map((b) => (
+                  <Cell key={b.bucket} fill={scoreColor(b.avg)} fillOpacity={0.92} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+
+      {/* Row 5: reach over time (real, honest empty) */}
       <ChartCard
         title="Audience reach over time"
         hint="cumulative real views from posted clips"

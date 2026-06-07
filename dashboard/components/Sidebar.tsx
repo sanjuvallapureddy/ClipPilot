@@ -1,18 +1,12 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Clapperboard,
   LayoutDashboard,
   BarChart3,
-<<<<<<< HEAD
-  Compass,
-  History,
-  Info,
-=======
   Settings,
->>>>>>> f2f41d86084163dac12075d9fc4b9bebf03136b3
   PanelLeftClose,
   PanelLeft,
   X,
@@ -32,17 +26,8 @@ export interface NavItem {
 // Two top-level destinations only: the whole mission-control dashboard lives under one
 // "Dashboard" tab; analytics is its own page.
 export const NAV_ITEMS: NavItem[] = [
-<<<<<<< HEAD
-  { id: "overview", label: "Overview", icon: LayoutDashboard, accent: "text-neutral-200" },
-  { id: "live-pipeline", label: "Pipeline", icon: Activity, accent: "text-violet-400" },
-  { id: "viral-moments", label: "Clips", icon: Flame, accent: "text-amber-400" },
-  { id: "clip-history", label: "History", icon: History, accent: "text-emerald-400" },
-  { id: "analytics", label: "Analytics", icon: BarChart3, accent: "text-blue-400" },
-  { id: "discovered-queue", label: "Discovery", icon: Compass, accent: "text-cyan-400" },
-=======
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, accent: "text-neutral-200", route: "/" },
   { id: "analytics", label: "Analytics", icon: BarChart3, accent: "text-blue-400", route: "/analytics" },
->>>>>>> f2f41d86084163dac12075d9fc4b9bebf03136b3
 ];
 
 export default function Sidebar({ online }: { online: boolean | null }) {
@@ -50,6 +35,11 @@ export default function Sidebar({ online }: { online: boolean | null }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+
+  // Warm both routes on mount so switching tabs is instant (no first-click compile/fetch wait).
+  useEffect(() => {
+    NAV_ITEMS.forEach((i) => router.prefetch(i.route));
+  }, [router]);
 
   const width = collapsed ? "w-16" : "w-56";
 
@@ -89,6 +79,7 @@ export default function Sidebar({ online }: { online: boolean | null }) {
               <button
                 key={item.id}
                 onClick={() => router.push(item.route)}
+                onMouseEnter={() => router.prefetch(item.route)}
                 className={`group relative flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors ${
                   isActive
                     ? "bg-neutral-900/70 text-neutral-100"

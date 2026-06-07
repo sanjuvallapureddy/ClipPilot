@@ -18,6 +18,7 @@ Enable it with:
 from __future__ import annotations
 
 import functools
+import inspect
 import os
 from typing import Any, Callable, TypeVar
 
@@ -78,24 +79,38 @@ def init() -> bool:
 def op(name: str | None = None) -> Callable[[F], F]:
     """Trace a function as a Weave op when tracing is enabled, otherwise no-op.
 
-    The traced wrapper is created lazily on first call (after ``init``), so decoration
-    at import time is free and never requires weave to be present.
+    Works for both sync and ``async def`` functions. The traced wrapper is created lazily
+    on first call (after ``init``), so decoration at import time is free and never requires
+    weave to be present. When tracing is off, this adds nothing but a function call.
     """
 
     def deco(fn: F) -> F:
         cache: dict[str, Callable[..., Any]] = {}
 
+        def _traced() -> Callable[..., Any]:
+            t = cache.get("fn")
+            if t is None:
+                try:
+                    t = _weave.op(name=name)(fn) if name else _weave.op()(fn)
+                except Exception:
+                    t = fn
+                cache["fn"] = t
+            return t
+
+        if inspect.iscoroutinefunction(fn):
+
+            @functools.wraps(fn)
+            async def awrapper(*args: Any, **kwargs: Any) -> Any:
+                if init() and _weave is not None:
+                    return await _traced()(*args, **kwargs)
+                return await fn(*args, **kwargs)
+
+            return awrapper  # type: ignore[return-value]
+
         @functools.wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             if init() and _weave is not None:
-                traced = cache.get("fn")
-                if traced is None:
-                    try:
-                        traced = _weave.op(name=name)(fn) if name else _weave.op()(fn)
-                    except Exception:
-                        traced = fn
-                    cache["fn"] = traced
-                return traced(*args, **kwargs)
+                return _traced()(*args, **kwargs)
             return fn(*args, **kwargs)
 
         return wrapper  # type: ignore[return-value]
