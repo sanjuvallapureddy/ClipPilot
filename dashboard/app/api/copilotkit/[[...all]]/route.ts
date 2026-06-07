@@ -42,7 +42,9 @@ const copilotKit = new CopilotRuntime({
   actions: (): any[] => [
     {
       name: "startAutonomous",
-      description: "Start the unattended autonomous loop on a topic.",
+      description:
+        "Low-level start of the unattended autonomous loop on a topic (no confirmation). " +
+        "Prefer the client action 'startAutonomousLoop', which asks the user to confirm first.",
       parameters: [
         { name: "topic", type: "string", required: true },
         { name: "interval_seconds", type: "number", required: false },
@@ -52,7 +54,9 @@ const copilotKit = new CopilotRuntime({
     },
     {
       name: "stopAutonomous",
-      description: "Stop the autonomous loop.",
+      description:
+        "Stop the autonomous loop (low-level). The client action 'stopAutonomousLoop' is " +
+        "equivalent and also refreshes the dashboard.",
       parameters: [],
       handler: async () => laneA("/stop", "POST", {}),
     },
