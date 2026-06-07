@@ -15,8 +15,15 @@ node_modules/
 dist/
 build/
 *.mp4
+*.mp4.part
+*.part
+*.webm
+*.mkv
 *.log
 .DS_Store
-media/               # downloaded source videos (Lane C ingest)
-engine/openshorts/   # vendored OpenShorts (add as submodule / git clone)
-openshorts/          # vendored OpenShorts (cloned at repo root)
+# downloaded source videos (Lane C ingest)
+media/
+# vendored OpenShorts (add as submodule / git clone)
+engine/openshorts/
+# vendored OpenShorts (cloned at repo root)
+openshorts/

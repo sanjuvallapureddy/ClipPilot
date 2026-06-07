@@ -244,7 +244,7 @@ def score_virality(title: str, topic_summary: str, views: int, fit: float,
         resp = client.chat.completions.create(
             model=os.getenv("OPENAI_MODEL", "gpt-5.5"),
             messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"}, temperature=0.4,
+            response_format={"type": "json_object"},  # gpt-5.x: only default temperature (1)
         )
         d = json.loads(resp.choices[0].message.content)
         title_score = float(d.get("title_score", 0.5))

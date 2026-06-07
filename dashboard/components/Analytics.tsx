@@ -18,6 +18,7 @@ interface AnalyticsData {
   topicStats: { topic: string; avg_engagement: number; views: number; clips: number }[];
   patterns: Patterns | null;
   totals: { moments: number; posted: number; views: number; avg_virality: number };
+  degraded?: boolean;
 }
 
 export default function Analytics({ refreshKey }: { refreshKey: number }) {
@@ -82,48 +83,60 @@ export default function Analytics({ refreshKey }: { refreshKey: number }) {
         />
       </div>
 
-      <p className="mt-4 font-mono text-[10px] leading-relaxed text-neutral-600">
-        Scores are GPT predicted virality from the real transcript. Real views/likes appear
-        once clips are rendered (OpenShorts) and posted (platform credentials).
+      <p className="mt-4 text-xs leading-relaxed text-neutral-500">
+        Scores are GPT-predicted virality from the real transcript. Real views and likes
+        appear once clips are rendered (OpenShorts) and posted (platform credentials).
       </p>
 
       <div className="mt-4 h-40">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={series} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-            <defs>
-              <linearGradient id="engagementFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#f5f5f5" stopOpacity={0.18} />
-                <stop offset="100%" stopColor="#f5f5f5" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <XAxis dataKey="i" hide />
-            <YAxis hide />
-            <Tooltip
-              cursor={{ stroke: "#262626", strokeWidth: 1 }}
-              contentStyle={{
-                background: "#0a0a0a",
-                border: "1px solid #262626",
-                borderRadius: 8,
-                fontSize: 11,
-                fontFamily: "ui-monospace, monospace",
-              }}
-              labelStyle={{ color: "#737373" }}
-              itemStyle={{ color: "#f5f5f5" }}
-            />
-            <Area
-              type="monotone"
-              dataKey="engagement"
-              stroke="#f5f5f5"
-              fill="url(#engagementFill)"
-              strokeWidth={1.5}
-              isAnimationActive
-              animationDuration={1100}
-              animationEasing="ease-out"
-              activeDot={{ r: 3, fill: "#f5f5f5", stroke: "#000", strokeWidth: 1 }}
-              dot={false}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        {series.length > 0 ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={series} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+              <defs>
+                <linearGradient id="engagementFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#f5f5f5" stopOpacity={0.18} />
+                  <stop offset="100%" stopColor="#f5f5f5" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="i" hide />
+              <YAxis hide />
+              <Tooltip
+                cursor={{ stroke: "#262626", strokeWidth: 1 }}
+                contentStyle={{
+                  background: "#0a0a0a",
+                  border: "1px solid #262626",
+                  borderRadius: 8,
+                  fontSize: 11,
+                }}
+                labelStyle={{ color: "#737373" }}
+                itemStyle={{ color: "#f5f5f5" }}
+              />
+              <Area
+                type="monotone"
+                dataKey="engagement"
+                stroke="#f5f5f5"
+                fill="url(#engagementFill)"
+                strokeWidth={1.5}
+                isAnimationActive
+                animationDuration={1100}
+                animationEasing="ease-out"
+                activeDot={{ r: 3, fill: "#f5f5f5", stroke: "#000", strokeWidth: 1 }}
+                dot={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-neutral-800 bg-neutral-950/40 text-center">
+            <span className="text-xs text-neutral-400">
+              {data.degraded ? "Waiting for the orchestrator" : "No moments yet"}
+            </span>
+            <span className="text-[11px] text-neutral-600">
+              {data.degraded
+                ? "Start Redis + Lane A, then run the pipeline."
+                : "Run the pipeline to detect real viral moments."}
+            </span>
+          </div>
+        )}
       </div>
 
       <h3 className="mb-3 mt-5 text-xs font-medium uppercase tracking-wider text-neutral-500">

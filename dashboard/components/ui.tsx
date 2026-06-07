@@ -280,11 +280,11 @@ export function MetricCard({
         )}
       </div>
       <div className="flex items-baseline gap-2">
-        <div className="font-mono text-2xl font-semibold tracking-tight text-neutral-100">
+        <div className="text-2xl font-semibold tracking-tight tabular-nums text-neutral-100">
           {value}
         </div>
         {description && (
-          <span className="font-mono text-[10px] text-neutral-600">{description}</span>
+          <span className="text-[11px] text-neutral-600">{description}</span>
         )}
       </div>
     </div>
@@ -384,12 +384,12 @@ export function GlowMetricCard({
       <div className="relative z-10 mt-3 flex items-end justify-between gap-2">
         <div className="flex items-baseline gap-2">
           <span
-            className={`font-mono text-2xl font-semibold tracking-tight text-neutral-100 transition-colors duration-300 ${s.valueHover}`}
+            className={`text-2xl font-semibold tracking-tight tabular-nums text-neutral-100 transition-colors duration-300 ${s.valueHover}`}
           >
             {value}
           </span>
           {description && (
-            <span className="font-mono text-[10px] text-neutral-600">{description}</span>
+            <span className="text-[11px] text-neutral-600">{description}</span>
           )}
         </div>
         {sparkline && sparkline.length > 1 && (

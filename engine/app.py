@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from shared.redis_client import coord
 from shared.schemas import EngineStatus, ProcessRequest, ProcessResponse
 
-from . import pipeline
+from . import observability, pipeline
 
 app = FastAPI(title="ClipPilot Engine", version="0.2.0")
 app.add_middleware(
@@ -24,6 +24,8 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def _startup() -> None:
+    # Optional Weave/W&B tracing — no-op unless WEAVE_PROJECT + WANDB_API_KEY are set.
+    observability.init()
     coord("C", "milestone", "engine up (real transcript + GPT moment detection)")
 
 

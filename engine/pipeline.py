@@ -22,7 +22,7 @@ from shared import keys
 from shared.redis_client import advance_job, coord, get_client, read_job
 from shared.schemas import ClipResult, EngineStatus, ProcessRequest
 
-from . import download, transcript
+from . import download, observability, publish, transcript
 from .scoring import FACTORS
 
 _ENGINE_JOBS: dict[str, EngineStatus] = {}
@@ -151,6 +151,11 @@ async def _run_real(engine_job_id: str, req: ProcessRequest) -> None:
         r.sadd(keys.RESULTS_SET, clip_id)
         clip_ids.append(clip_id)
         coord("C", "info", f"moment {clip_id} score={res.engagement_score} [{res.start_seconds}-{res.end_seconds}s]")
+        # Honest posting handoff: a guaranteed no-op today (render_status="pending"
+        # until OpenShorts renders a real vertical short + file). Never fakes a post.
+        posted = publish.publish_clip(res, None)
+        if posted.post_status != "not_posted":
+            r.hset(keys.result_key(clip_id), mapping=posted.to_redis())
 
     st = get_status(engine_job_id)
     st.clips = clip_ids
@@ -158,8 +163,13 @@ async def _run_real(engine_job_id: str, req: ProcessRequest) -> None:
     coord("C", "milestone", f"{engine_job_id} done: {len(clip_ids)} real viral moments")
 
 
+@observability.op("detect_moments")
 def _detect_moments(windows: list[dict], req: ProcessRequest, n: int) -> list[dict]:
-    """GPT picks the top N real viral moments from the real candidate windows."""
+    """GPT picks the top N real viral moments from the real candidate windows.
+
+    Wrapped as a Weave op so each real GPT virality pass (inputs, output moments, latency,
+    token usage) is captured as an LLM trace in Weights & Biases when tracing is enabled.
+    """
     if not os.getenv("OPENAI_API_KEY") or not windows:
         return []
     from openai import OpenAI
@@ -183,7 +193,7 @@ def _detect_moments(windows: list[dict], req: ProcessRequest, n: int) -> list[di
         resp = client.chat.completions.create(
             model=os.getenv("OPENAI_MODEL", "gpt-5.5"),
             messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"}, temperature=0.4,
+            response_format={"type": "json_object"},  # gpt-5.x: only default temperature (1)
         )
         picked = json.loads(resp.choices[0].message.content).get("moments", [])
     except Exception as e:

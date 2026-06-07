@@ -48,7 +48,7 @@ def _gpt_variants(topic: str, n: int, patterns: Patterns) -> list[Variant]:  # p
     resp = client.chat.completions.create(
         model=os.getenv("OPENAI_MODEL", "gpt-5.5"),
         messages=[{"role": "user", "content": prompt}],
-        response_format={"type": "json_object"}, temperature=0.8,
+        response_format={"type": "json_object"},  # gpt-5.x: only default temperature (1)
     )
     data = json.loads(resp.choices[0].message.content).get("variants", [])
     return [
