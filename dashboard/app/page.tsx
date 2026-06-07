@@ -13,7 +13,9 @@ import {
   Loader2,
   BarChart3,
   Trophy,
+  TrendingUp,
 } from "lucide-react";
+import { getClipPredictions } from "@/lib/virality-mock";
 import LivePipeline from "@/components/LivePipeline";
 import DiscoveredQueue from "@/components/DiscoveredQueue";
 import ClipsGallery from "@/components/ClipsGallery";
@@ -23,6 +25,7 @@ import CommandMenu from "@/components/CommandMenu";
 import YouTubeConnect from "@/components/YouTubeConnect";
 import ManualUpload from "@/components/ManualUpload";
 import MockEditingStudio from "@/components/MockEditingStudio";
+import ViralityPredictor from "@/components/ViralityPredictor";
 import Sidebar, { NAV_ITEMS } from "@/components/Sidebar";
 import Aurora from "@/components/Aurora";
 import ScrollProgress from "@/components/ScrollProgress";
@@ -415,6 +418,67 @@ export default function Page() {
     ),
   });
 
+  useCopilotAction({
+    name: "rateClipVirality",
+    description:
+      "Rate multiple clips with predicted virality scores, retention, and explain WHY each " +
+      "clip would perform. Uses mock predictions until OpenShorts multi-clip output is wired.",
+    parameters: [
+      {
+        name: "clip_id",
+        type: "string",
+        description: "optional clip id to focus on; omit for all clips ranked",
+        required: false,
+      },
+    ],
+    handler: async ({ clip_id }) => {
+      const clips = getClipPredictions();
+      if (clip_id) {
+        const one = clips.find((c) => c.clip_id === clip_id);
+        return one ?? { error: `unknown clip ${clip_id}` };
+      }
+      return { best: clips[0], clips };
+    },
+    render: ({ status: s, result }) => (
+      <Card className="my-1">
+        <div className="flex items-center gap-2 pb-3">
+          <TrendingUp size={14} className="text-rose-400" />
+          <span className="text-xs font-medium uppercase tracking-wider text-neutral-400">
+            Virality prediction
+          </span>
+        </div>
+        {s === "complete" && result && !result.error ? (
+          <div className="flex flex-col gap-2 text-xs">
+            {"clips" in result && result.clips ? (
+              <>
+                <div className="font-mono text-emerald-400">
+                  Best: {result.best?.title} · score {result.best?.virality_score}/100
+                </div>
+                <p className="text-neutral-500">{result.best?.reasoning}</p>
+              </>
+            ) : (
+              <>
+                <div className="font-mono text-neutral-300">
+                  {result.title} · {result.virality_score}/100
+                </div>
+                <ul className="list-inside list-disc text-neutral-500">
+                  {(result.why_bullets || []).slice(0, 3).map((b: string, i: number) => (
+                    <li key={i}>{b}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-xs text-neutral-500">
+            <Loader2 size={12} className="animate-spin" />
+            Scoring clips…
+          </div>
+        )}
+      </Card>
+    ),
+  });
+
   const activeLabel = NAV_ITEMS.find((n) => n.id === activeSection)?.label ?? "Overview";
 
   return (
@@ -540,6 +604,10 @@ export default function Page() {
 
         <Reveal id="editing-studio" className="scroll-mt-20">
           <MockEditingStudio />
+        </Reveal>
+
+        <Reveal id="virality-predictor" className="scroll-mt-20">
+          <ViralityPredictor />
         </Reveal>
 
         <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_0.9fr]">
