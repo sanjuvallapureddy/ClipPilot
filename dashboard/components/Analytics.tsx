@@ -12,6 +12,7 @@ import { motion } from "framer-motion";
 import { BarChart3, Sparkles, Trophy, Send, Activity } from "lucide-react";
 import type { Patterns } from "@/lib/types";
 import { SectionCard, MetricCard, Badge, Skeleton, AnimatedNumber } from "@/components/ui";
+import { formatScore } from "@/lib/format";
 
 interface AnalyticsData {
   timeline: { engagement: number; views: number }[];
@@ -56,7 +57,7 @@ export default function Analytics({ refreshKey }: { refreshKey: number }) {
 
   const series = data.timeline.map((p, i) => ({
     i,
-    engagement: +p.engagement.toFixed(3),
+    engagement: formatScore(p.engagement),
     views: p.views,
   }));
 
@@ -72,7 +73,7 @@ export default function Analytics({ refreshKey }: { refreshKey: number }) {
         <MetricCard
           title="Avg Virality"
           icon={Activity}
-          value={(data.totals.avg_virality || 0).toFixed(2)}
+          value={formatScore(data.totals.avg_virality || 0)}
           description="predicted"
         />
         <MetricCard
@@ -154,7 +155,7 @@ export default function Analytics({ refreshKey }: { refreshKey: number }) {
             <div className="mb-1 flex items-center justify-between text-xs">
               <span className="text-neutral-300">{t.topic}</span>
               <span className="font-mono tabular-nums text-emerald-400">
-                {t.avg_engagement.toFixed(3)}
+                {formatScore(t.avg_engagement)}
               </span>
             </div>
             <div className="h-1 overflow-hidden rounded-full bg-neutral-900">

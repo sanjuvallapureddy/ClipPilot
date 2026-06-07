@@ -6,7 +6,6 @@ import {
   Clapperboard,
   LayoutDashboard,
   Activity,
-  Wand2,
   TrendingUp,
   Flame,
   Compass,
@@ -22,6 +21,12 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { Tooltip } from "@/components/ui";
 import { useSectionNav } from "@/components/section-nav";
+import {
+  LOOP_INTERVAL_OPTIONS,
+  getLoopIntervalSeconds,
+  setLoopIntervalSeconds,
+  formatInterval,
+} from "@/lib/loopInterval";
 
 export interface NavItem {
   id: string;
@@ -37,7 +42,6 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard, accent: "text-neutral-200" },
   { id: "live-pipeline", label: "Pipeline", icon: Activity, accent: "text-violet-400" },
-  { id: "editing-studio", label: "Editing", icon: Wand2, accent: "text-fuchsia-400" },
   { id: "virality-predictor", label: "Virality", icon: TrendingUp, accent: "text-rose-400" },
   { id: "viral-moments", label: "Clips", icon: Flame, accent: "text-amber-400" },
   { id: "self-learning", label: "Learning", icon: GraduationCap, accent: "text-emerald-400" },
@@ -241,6 +245,19 @@ function SettingsModal({
   online: boolean | null;
   onClose: () => void;
 }) {
+  const [intervalSeconds, setIntervalSeconds] = useState(getLoopIntervalSeconds);
+
+  useEffect(() => {
+    if (!open) return;
+    setIntervalSeconds(getLoopIntervalSeconds());
+    const onChange = (e: Event) => {
+      const detail = (e as CustomEvent<number>).detail;
+      if (typeof detail === "number") setIntervalSeconds(detail);
+    };
+    window.addEventListener("clippilot:loop-interval", onChange);
+    return () => window.removeEventListener("clippilot:loop-interval", onChange);
+  }, [open]);
+
   return (
     <AnimatePresence>
       {open && (
@@ -305,6 +322,42 @@ function SettingsModal({
                     </div>
                   ))}
                 </div>
+              </div>
+
+              {/* Autonomous loop interval */}
+              <div>
+                <div className="mb-2 text-[10px] font-medium uppercase tracking-widest text-neutral-500">
+                  Autonomous loop
+                </div>
+                <p className="mb-2 text-xs leading-relaxed text-neutral-500">
+                  How often ClipPilot researches trending content and runs the full
+                  discover → clip → post cycle when auto mode is on.
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  {LOOP_INTERVAL_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.seconds}
+                      type="button"
+                      onClick={() => {
+                        setLoopIntervalSeconds(opt.seconds);
+                        setIntervalSeconds(opt.seconds);
+                      }}
+                      className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                        intervalSeconds === opt.seconds
+                          ? "border-neutral-600 bg-neutral-900/80 text-neutral-100"
+                          : "border-neutral-900 bg-black text-neutral-400 hover:border-neutral-800 hover:text-neutral-200"
+                      }`}
+                    >
+                      <span>{opt.label}</span>
+                      {intervalSeconds === opt.seconds && (
+                        <span className="font-mono text-[10px] text-emerald-400/90">active</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 font-mono text-[10px] text-neutral-600">
+                  Current: every {formatInterval(intervalSeconds)}
+                </p>
               </div>
 
               {/* System status */}

@@ -31,7 +31,6 @@ import CommandMenu from "@/components/CommandMenu";
 import YouTubeConnect from "@/components/YouTubeConnect";
 import ManualUpload from "@/components/ManualUpload";
 import RecentClipHistory from "@/components/RecentClipHistory";
-import MockEditingStudio from "@/components/MockEditingStudio";
 import ViralityPredictor from "@/components/ViralityPredictor";
 import Aurora from "@/components/Aurora";
 import ScrollProgress from "@/components/ScrollProgress";
@@ -39,7 +38,7 @@ import { NAV_ITEMS } from "@/components/Sidebar";
 import { useSectionNav } from "@/components/section-nav";
 import { motion } from "framer-motion";
 import {
-  MagneticButton,
+  Button,
   Card,
   GlowMetricCard,
   Badge,
@@ -49,6 +48,8 @@ import {
   Reveal,
 } from "@/components/ui";
 import { toast, dismiss } from "@/components/toast";
+import { formatScore } from "@/lib/format";
+import { getLoopIntervalSeconds, formatInterval } from "@/lib/loopInterval";
 import type { Stage } from "@/lib/types";
 
 async function control(action: string, payload: unknown = {}) {
@@ -82,6 +83,7 @@ function ConfirmStartLoop({
   respond,
   result,
   defaultTopic,
+  defaultIntervalSeconds,
   onConfirm,
 }: {
   status: string;
@@ -89,11 +91,12 @@ function ConfirmStartLoop({
   respond?: (value: any) => void;
   result?: { confirmed?: boolean; topic?: string };
   defaultTopic: string;
+  defaultIntervalSeconds: number;
   onConfirm: (topic: string, intervalSeconds?: number) => Promise<{ ok: boolean }>;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const topic = (args?.topic || defaultTopic || "tech").trim();
-  const interval = args?.interval_seconds;
+  const interval = args?.interval_seconds ?? defaultIntervalSeconds;
 
   if (status === "complete") {
     const confirmed = result?.confirmed;
@@ -143,13 +146,14 @@ function ConfirmStartLoop({
         {interval ? (
           <>
             {" "}
-            every <span className="font-mono text-neutral-200">{interval}s</span>
+            every{" "}
+            <span className="font-mono text-neutral-200">{formatInterval(interval)}</span>
           </>
         ) : null}
         : discover → clip → post → learn → repeat.
       </p>
       <div className="flex items-center gap-2">
-        <MagneticButton
+        <Button
           variant="primary"
           disabled={submitting}
           onClick={async () => {
@@ -164,15 +168,15 @@ function ConfirmStartLoop({
         >
           {submitting ? <Loader2 size={14} className="animate-spin" /> : <Power size={14} />}
           {submitting ? "Starting…" : "Confirm & start"}
-        </MagneticButton>
-        <MagneticButton
+        </Button>
+        <Button
           variant="ghost"
           disabled={submitting}
           onClick={() => respond?.({ confirmed: false })}
         >
           <X size={14} />
           Cancel
-        </MagneticButton>
+        </Button>
       </div>
     </Card>
   );
@@ -185,6 +189,7 @@ export default function Page() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [cyclesHist, setCyclesHist] = useState<number[]>([]);
   const [queueHist, setQueueHist] = useState<number[]>([]);
+  const [autoIntervalSeconds, setAutoIntervalSeconds] = useState(getLoopIntervalSeconds);
   // Contract-backed context the copilot can read & answer questions from (queue/clips/analytics).
   const [ctx, setCtx] = useState<{ queue: any[]; clips: any[]; analytics: any }>({
     queue: [],
@@ -235,6 +240,7 @@ export default function Page() {
       if (r.ok) {
         setCyclesHist((h) => [...h, Number(j?.cycles ?? 0)].slice(-HISTORY));
         setQueueHist((h) => [...h, Number(j?.queue_pending ?? 0)].slice(-HISTORY));
+        if (j?.interval_seconds) setAutoIntervalSeconds(Number(j.interval_seconds));
       }
     } catch {
       setOnline(false);
@@ -246,6 +252,16 @@ export default function Page() {
     const t = setInterval(loadStatus, 4000);
     return () => clearInterval(t);
   }, [loadStatus]);
+
+  useEffect(() => {
+    setAutoIntervalSeconds(getLoopIntervalSeconds());
+    const onInterval = (e: Event) => {
+      const detail = (e as CustomEvent<number>).detail;
+      if (typeof detail === "number") setAutoIntervalSeconds(detail);
+    };
+    window.addEventListener("clippilot:loop-interval", onInterval);
+    return () => window.removeEventListener("clippilot:loop-interval", onInterval);
+  }, []);
 
   // Pull the contract-backed context the copilot answers from. Kept slim so readable payloads
   // stay small; refreshed on a slow timer and after every action (bump() advances refreshKey).
@@ -454,13 +470,21 @@ export default function Page() {
   const doToggleAuto = useCallback(async () => {
     if (!ensureOrchestrator()) return;
     const turningOn = !running;
-    const { ok } = await callControl(turningOn ? "start" : "stop", {
+    const intervalSeconds = autoIntervalSeconds || getLoopIntervalSeconds();
+    const { ok } = await callControl(turningOn ? "start" : "stop", turningOn ? {
       topic: status?.topic || "tech",
-    });
-    if (ok) toast(turningOn ? "Autonomous loop started" : "Autonomous loop stopped", "success");
-    else toast("Could not reach the orchestrator", "error");
+      interval_seconds: intervalSeconds,
+    } : {});
+    if (ok) {
+      toast(
+        turningOn
+          ? `Auto loop started · every ${formatInterval(intervalSeconds)}`
+          : "Autonomous loop stopped",
+        "success",
+      );
+    } else toast("Could not reach the orchestrator", "error");
     loadStatus();
-  }, [running, status?.topic, loadStatus, ensureOrchestrator]);
+  }, [running, status?.topic, autoIntervalSeconds, loadStatus, ensureOrchestrator]);
 
   // --- Global single-key shortcuts (ignored while typing) ---
   useEffect(() => {
@@ -516,7 +540,7 @@ export default function Page() {
                 className="flex items-center gap-3 border-t border-neutral-900 pt-2 text-xs"
               >
                 <span className="font-mono text-emerald-400">
-                  {(it.trend_score ?? 0).toFixed(2)}
+                  {formatScore(it.trend_score)}
                 </span>
                 <span className="flex-1 truncate text-neutral-300">{it.title}</span>
               </div>
@@ -564,7 +588,7 @@ export default function Page() {
                 className="flex items-center gap-3 border-t border-neutral-900 pt-2 text-xs"
               >
                 <span className="font-mono text-emerald-400">
-                  {(it.trend_score ?? 0).toFixed(2)}
+                  {formatScore(it.trend_score)}
                 </span>
                 <span className="flex-1 truncate text-neutral-300">{it.title}</span>
               </div>
@@ -808,12 +832,11 @@ export default function Page() {
           respond={respond}
           result={result}
           defaultTopic={status?.topic ?? "tech"}
+          defaultIntervalSeconds={autoIntervalSeconds || getLoopIntervalSeconds()}
           onConfirm={async (topic, intervalSeconds) => {
             if (!ensureOrchestrator()) return { ok: false };
-            const payload = intervalSeconds
-              ? { topic, interval_seconds: intervalSeconds }
-              : { topic };
-            const r = await callControl("start", payload);
+            const seconds = intervalSeconds ?? getLoopIntervalSeconds();
+            const r = await callControl("start", { topic, interval_seconds: seconds });
             if (r.ok) toast("Autonomous loop started", "success");
             else toast("Could not reach the orchestrator", "error");
             loadStatus();
@@ -823,7 +846,7 @@ export default function Page() {
         />
       ),
     },
-    [status?.topic, ensureOrchestrator, loadStatus, bump],
+    [status?.topic, autoIntervalSeconds, ensureOrchestrator, loadStatus, bump],
   );
 
   useCopilotAction(
@@ -942,36 +965,36 @@ export default function Page() {
             <YouTubeConnect />
 
             <Tooltip label="Discover podcasts" hotkey="D">
-              <MagneticButton variant="ghost" disabled={busy} onClick={doDiscover}>
+              <Button variant="ghost" disabled={busy} onClick={doDiscover}>
                 <Search size={14} />
                 Discover
-              </MagneticButton>
+              </Button>
             </Tooltip>
             <Tooltip label="Research trending episodes">
-              <MagneticButton variant="ghost" disabled={busy} onClick={doResearch}>
+              <Button variant="ghost" disabled={busy} onClick={doResearch}>
                 <Globe size={14} />
                 Research
-              </MagneticButton>
+              </Button>
             </Tooltip>
             <Tooltip label="Run one cycle" hotkey="R">
-              <MagneticButton variant="primary" disabled={busy} onClick={doRunOnce}>
+              <Button variant="primary" disabled={busy} onClick={doRunOnce}>
                 {busy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
                 {busy ? "Running" : "Run Once"}
-              </MagneticButton>
+              </Button>
             </Tooltip>
             {running ? (
               <Tooltip label="Stop autonomous loop" hotkey="A">
-                <MagneticButton variant="danger" onClick={doToggleAuto}>
+                <Button variant="danger" onClick={doToggleAuto}>
                   <Square size={14} />
                   Stop Auto
-                </MagneticButton>
+                </Button>
               </Tooltip>
             ) : (
-              <Tooltip label="Start autonomous loop" hotkey="A">
-                <MagneticButton variant="ghost" onClick={doToggleAuto}>
+              <Tooltip label={`Start unattended loop · every ${formatInterval(autoIntervalSeconds || getLoopIntervalSeconds())}`} hotkey="A">
+                <Button variant="ghost" onClick={doToggleAuto}>
                   <Power size={14} />
                   Start Auto
-                </MagneticButton>
+                </Button>
               </Tooltip>
             )}
           </div>
@@ -1041,12 +1064,6 @@ export default function Page() {
           {activeSection === "live-pipeline" && (
             <Reveal>
               <LivePipeline />
-            </Reveal>
-          )}
-
-          {activeSection === "editing-studio" && (
-            <Reveal>
-              <MockEditingStudio />
             </Reveal>
           )}
 

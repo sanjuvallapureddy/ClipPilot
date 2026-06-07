@@ -13,6 +13,7 @@ import {
 import { useEffect, useState } from "react";
 import type { ClipResult } from "@/lib/types";
 import { Badge, YouTubeGlyph } from "@/components/ui";
+import { formatScore } from "@/lib/format";
 
 function ts(s: number) {
   const m = Math.floor(s / 60);
@@ -60,7 +61,7 @@ export default function ClipDrawer({
             <div className="flex items-center justify-between border-b border-neutral-900 px-5 py-3.5">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-base font-semibold tabular-nums text-emerald-400">
-                  {clip.engagement_score.toFixed(2)}
+                  {formatScore(clip.engagement_score)}
                 </span>
                 <span className="text-[10px] font-medium uppercase tracking-widest text-neutral-500">
                   predicted virality

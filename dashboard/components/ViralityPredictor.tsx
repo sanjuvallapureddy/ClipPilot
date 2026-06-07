@@ -9,8 +9,8 @@ import {
   Pie,
   Cell,
   ResponsiveContainer,
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   BarChart,
   Bar,
   XAxis,
@@ -34,24 +34,24 @@ import { useCopilotChatSuggestions, useChatContext } from "@copilotkit/react-ui"
 import { getClipPredictions, getBestPrediction } from "@/lib/virality-mock";
 import type { LucideIcon } from "lucide-react";
 import { SectionCard, Badge, GlowMetricCard, OdometerNumber, Button } from "@/components/ui";
+import { formatScore } from "@/lib/format";
+import { compact } from "@/lib/num";
 
 const CHART_TOOLTIP = {
   contentStyle: {
     background: "#0a0a0a",
     border: "1px solid #262626",
-    borderRadius: 8,
+    borderRadius: 6,
     fontSize: 11,
-    fontFamily: "ui-monospace, monospace",
+    padding: "6px 10px",
   },
-  labelStyle: { color: "#737373" },
-  itemStyle: { color: "#f5f5f5" },
+  labelStyle: { color: "#737373", marginBottom: 2 },
+  itemStyle: { color: "#e5e5e5" },
+  cursor: { stroke: "#404040", strokeWidth: 1 },
 };
 
-function fmt(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-}
+const AXIS_TICK = { fill: "#525252", fontSize: 10 };
+const GRID = { stroke: "#1a1a1a", strokeDasharray: "2 6", vertical: false };
 
 const COPILOT_PROMPTS = [
   "Why is the top clip predicted to go viral?",
@@ -151,23 +151,23 @@ export default function ViralityPredictor() {
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <HeroStat
             label="Virality"
-            value={`${best.virality_score}`}
+            value={`${formatScore(best.virality_score)}`}
             suffix="/100"
             accent="text-emerald-400"
           />
           <HeroStat
             label="Pred. views"
-            value={fmt(best.predicted_views)}
+            value={compact(best.predicted_views)}
             icon={Eye}
           />
           <HeroStat
             label="Retention"
-            value={`${best.predicted_retention_pct}%`}
+            value={`${Math.round(best.predicted_retention_pct)}%`}
             icon={Percent}
           />
           <HeroStat
             label="Pred. shares"
-            value={fmt(best.predicted_shares)}
+            value={compact(best.predicted_shares)}
             icon={Share2}
           />
         </div>
@@ -191,7 +191,7 @@ export default function ViralityPredictor() {
                   c.rank === 1 ? "text-emerald-400" : "text-neutral-300"
                 }`}
               >
-                {c.virality_score}
+                {formatScore(c.virality_score)}
               </span>
               {c.rank === 1 && <Trophy size={10} className="text-emerald-500" />}
             </div>
@@ -238,7 +238,7 @@ export default function ViralityPredictor() {
                   className="h-1.5 w-1.5 rounded-full"
                   style={{ background: f.color }}
                 />
-                {f.label} {f.score}
+                {f.label} {formatScore(f.score)}
               </span>
             ))}
           </div>
@@ -248,28 +248,43 @@ export default function ViralityPredictor() {
         <ChartPanel title="Predicted retention" sub="% still watching">
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={selected.retention_curve} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                <CartesianGrid stroke="#171717" strokeDasharray="3 3" vertical={false} />
+              <AreaChart data={selected.retention_curve} margin={{ top: 12, right: 12, left: -16, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="retentionFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#34d399" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid {...GRID} />
                 <XAxis
                   dataKey="second"
-                  tick={{ fill: "#525252", fontSize: 10 }}
+                  tick={AXIS_TICK}
+                  axisLine={false}
+                  tickLine={false}
                   tickFormatter={(s) => `${s}s`}
                 />
                 <YAxis
                   domain={[0, 100]}
-                  tick={{ fill: "#525252", fontSize: 10 }}
+                  tick={AXIS_TICK}
+                  axisLine={false}
+                  tickLine={false}
                   tickFormatter={(v) => `${v}%`}
+                  width={36}
                 />
-                <Tooltip {...CHART_TOOLTIP} formatter={(v: number) => [`${v.toFixed(0)}%`, "retention"]} />
-                <Line
+                <Tooltip
+                  {...CHART_TOOLTIP}
+                  formatter={(v: number) => [`${Math.round(v)}%`, "retention"]}
+                />
+                <Area
                   type="monotone"
                   dataKey="value"
                   stroke="#34d399"
-                  strokeWidth={2}
+                  strokeWidth={1.5}
+                  fill="url(#retentionFill)"
                   dot={false}
-                  animationDuration={1100}
+                  activeDot={{ r: 3, fill: "#34d399", stroke: "#0a0a0a", strokeWidth: 2 }}
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </ChartPanel>
@@ -278,24 +293,42 @@ export default function ViralityPredictor() {
         <ChartPanel title="Engagement intensity" sub="predicted over timeline">
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={selected.engagement_curve} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                <CartesianGrid stroke="#171717" strokeDasharray="3 3" vertical={false} />
+              <AreaChart data={selected.engagement_curve} margin={{ top: 12, right: 12, left: -16, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="engagementFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#a78bfa" stopOpacity={0.2} />
+                    <stop offset="100%" stopColor="#a78bfa" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid {...GRID} />
                 <XAxis
                   dataKey="second"
-                  tick={{ fill: "#525252", fontSize: 10 }}
+                  tick={AXIS_TICK}
+                  axisLine={false}
+                  tickLine={false}
                   tickFormatter={(s) => `${s}s`}
                 />
-                <YAxis domain={[0, 100]} tick={{ fill: "#525252", fontSize: 10 }} />
-                <Tooltip {...CHART_TOOLTIP} formatter={(v: number) => [v.toFixed(0), "intensity"]} />
-                <Line
+                <YAxis
+                  domain={[0, 100]}
+                  tick={AXIS_TICK}
+                  axisLine={false}
+                  tickLine={false}
+                  width={36}
+                />
+                <Tooltip
+                  {...CHART_TOOLTIP}
+                  formatter={(v: number) => [Math.round(v), "intensity"]}
+                />
+                <Area
                   type="monotone"
                   dataKey="value"
                   stroke="#a78bfa"
-                  strokeWidth={2}
+                  strokeWidth={1.5}
+                  fill="url(#engagementFill)"
                   dot={false}
-                  animationDuration={1100}
+                  activeDot={{ r: 3, fill: "#a78bfa", stroke: "#0a0a0a", strokeWidth: 2 }}
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </ChartPanel>
@@ -304,13 +337,13 @@ export default function ViralityPredictor() {
         <ChartPanel title="Clip comparison" sub="virality vs retention">
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={compareData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-                <CartesianGrid stroke="#171717" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" tick={{ fill: "#525252", fontSize: 10 }} />
-                <YAxis tick={{ fill: "#525252", fontSize: 10 }} />
+              <BarChart data={compareData} margin={{ top: 12, right: 12, left: -16, bottom: 0 }} barCategoryGap="20%">
+                <CartesianGrid {...GRID} />
+                <XAxis dataKey="name" tick={AXIS_TICK} axisLine={false} tickLine={false} />
+                <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} width={36} />
                 <Tooltip {...CHART_TOOLTIP} />
-                <Bar dataKey="virality" fill="#f5f5f5" radius={[4, 4, 0, 0]} animationDuration={900} />
-                <Bar dataKey="retention" fill="#38bdf8" radius={[4, 4, 0, 0]} animationDuration={900} />
+                <Bar dataKey="virality" fill="#e5e5e5" radius={[3, 3, 0, 0]} maxBarSize={28} />
+                <Bar dataKey="retention" fill="#38bdf8" radius={[3, 3, 0, 0]} maxBarSize={28} />
               </BarChart>
             </ResponsiveContainer>
           </div>

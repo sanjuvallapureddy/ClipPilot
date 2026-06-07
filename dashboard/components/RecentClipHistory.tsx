@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { ClipResult } from "@/lib/types";
 import { Badge, SectionCard, Skeleton, YouTubeGlyph } from "@/components/ui";
+import { formatScore } from "@/lib/format";
 
 function formatClipTime(seconds: number) {
   const mins = Math.floor(seconds / 60);
@@ -191,7 +192,7 @@ export default function RecentClipHistory({ refreshKey }: { refreshKey: number }
                       {formatClipTime(clip.start_seconds)}-{formatClipTime(clip.end_seconds)}
                     </Badge>
                     <Badge>{Math.round(clip.length_seconds)}s short</Badge>
-                    <Badge>{clip.engagement_score.toFixed(2)} virality</Badge>
+                    <Badge>{formatScore(clip.engagement_score)} virality</Badge>
                     {posted && (
                       <a
                         href={`https://www.youtube.com/watch?v=${clip.post_id}`}

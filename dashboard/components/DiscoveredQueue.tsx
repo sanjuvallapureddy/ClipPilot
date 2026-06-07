@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ListVideo } from "lucide-react";
 import type { DiscoveryItem } from "@/lib/types";
 import { SectionCard, Badge, Skeleton } from "@/components/ui";
+import { formatScore } from "@/lib/format";
 
 export default function DiscoveredQueue({ refreshKey }: { refreshKey: number }) {
   const [items, setItems] = useState<(DiscoveryItem & { id: string })[] | null>(null);
@@ -59,7 +60,7 @@ export default function DiscoveredQueue({ refreshKey }: { refreshKey: number }) 
             className="flex items-center gap-3 border-b border-neutral-900/70 py-2.5 last:border-b-0"
           >
             <span className="font-mono text-sm font-semibold tabular-nums text-emerald-400">
-              {(it.trend_score ?? 0).toFixed(2)}
+              {formatScore(it.trend_score)}
             </span>
             <div className="min-w-0 flex-1">
               <div className="truncate text-xs text-neutral-200">{it.title}</div>

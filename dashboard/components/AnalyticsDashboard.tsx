@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import WeaveObservability from "@/components/WeaveObservability";
 import type { Patterns } from "@/lib/types";
+import { formatScore } from "@/lib/format";
 
 // ---- palette ----------------------------------------------------------------
 // A single cohesive cool ramp (violet → teal) with one restrained warm accent.
@@ -268,13 +269,13 @@ export default function AnalyticsDashboard() {
         <Kpi label="Moments" value={t?.moments ?? 0} icon={Sparkles} color="#a78bfa" />
         <Kpi
           label="Avg Virality"
-          value={(t?.avgVirality ?? 0).toFixed(2)}
+          value={formatScore(t?.avgVirality ?? 0)}
           icon={Activity}
           color="#60a5fa"
         />
         <Kpi
           label="Top Virality"
-          value={(t?.topVirality ?? 0).toFixed(2)}
+          value={formatScore(t?.topVirality ?? 0)}
           icon={Flame}
           color="#fbbf24"
         />
@@ -462,7 +463,7 @@ export default function AnalyticsDashboard() {
               labelStyle={{ color: "#a3a3a3" }}
               cursor={{ stroke: "#ffffff14" }}
               formatter={(v: number, n: string) =>
-                n === "Virality" ? [v.toFixed(3), n] : [`${v}s`, n]
+                n === "Virality" ? [formatScore(v), n] : [`${v}s`, n]
               }
             />
             <Scatter data={scatterData} isAnimationActive animationDuration={700}>
@@ -536,7 +537,7 @@ export default function AnalyticsDashboard() {
                 contentStyle={tooltipStyle}
                 labelStyle={{ color: "#a3a3a3" }}
                 cursor={{ fill: "#ffffff08" }}
-                formatter={(v: number) => [v.toFixed(3), "Avg virality"]}
+                formatter={(v: number) => [formatScore(v), "Avg virality"]}
               />
               <Bar dataKey="avg" radius={[5, 5, 0, 0]} isAnimationActive animationDuration={900}>
                 {viralityByLength.map((b) => (
@@ -634,7 +635,7 @@ export default function AnalyticsDashboard() {
                       className="font-medium tabular-nums"
                       style={{ color: scoreColor(c.engagement) }}
                     >
-                      {c.engagement.toFixed(3)}
+                      {formatScore(c.engagement)}
                     </span>
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-neutral-400">

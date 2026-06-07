@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { ClipResult } from "@/lib/types";
 import { SectionCard, Badge, Skeleton, YouTubeGlyph } from "@/components/ui";
+import { formatScore } from "@/lib/format";
 import ClipDrawer from "@/components/ClipDrawer";
 
 function ts(s: number) {
@@ -172,7 +173,7 @@ export default function ClipsGallery({ refreshKey }: { refreshKey: number }) {
                 )}
                 <div className="flex items-baseline gap-3">
                   <span className="font-mono text-lg font-semibold tabular-nums text-emerald-400">
-                    {c.engagement_score.toFixed(2)}
+                    {formatScore(c.engagement_score)}
                   </span>
                   <span className="text-sm font-medium leading-snug text-neutral-100">
                     {c.hook}

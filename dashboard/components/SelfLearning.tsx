@@ -13,6 +13,7 @@ import {
   Gauge,
 } from "lucide-react";
 import { Badge, SectionCard, Skeleton } from "@/components/ui";
+import { formatScore } from "@/lib/format";
 import type { LearningInsight } from "@/lib/types";
 
 interface ClipBrief {
@@ -38,7 +39,7 @@ interface InsightsData {
 function fmtSignal(value: number, signalSource: string) {
   return signalSource === "real_views"
     ? `${Math.round(value).toLocaleString()} views`
-    : `${value.toFixed(2)} virality`;
+    : `${formatScore(value)} virality`;
 }
 
 function relativeTime(seconds: number) {
