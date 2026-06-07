@@ -27,12 +27,18 @@ _initialized = False
 _weave: Any = None
 
 
-def _has_wandb_auth() -> bool:
-    """W&B auth via env var or a stored credentials file (`wandb login`).
+def _sync_api_key() -> None:
+    """Allow pasting the key as WEAVE_API_KEY in .env; the weave/wandb SDK reads
+    WANDB_API_KEY, so mirror it over when only the friendly alias is set."""
+    alias = os.getenv("WEAVE_API_KEY")
+    if alias and not os.getenv("WANDB_API_KEY"):
+        os.environ["WANDB_API_KEY"] = alias
 
-    `wandb login` writes `~/.netrc` on macOS/Linux and `~/_netrc` on Windows, so we
-    check both.
-    """
+
+def _has_wandb_auth() -> bool:
+    """W&B auth via env var (WANDB_API_KEY / WEAVE_API_KEY) or a stored credentials
+    file from `wandb login` (`~/.netrc` on macOS/Linux, `~/_netrc` on Windows)."""
+    _sync_api_key()
     if os.getenv("WANDB_API_KEY"):
         return True
     home = os.path.expanduser("~")

@@ -26,9 +26,9 @@ import YouTubeConnect from "@/components/YouTubeConnect";
 import ManualUpload from "@/components/ManualUpload";
 import MockEditingStudio from "@/components/MockEditingStudio";
 import ViralityPredictor from "@/components/ViralityPredictor";
-import Sidebar, { NAV_ITEMS, SECTION_ITEMS } from "@/components/Sidebar";
 import Aurora from "@/components/Aurora";
 import ScrollProgress from "@/components/ScrollProgress";
+import { motion } from "framer-motion";
 import {
   MagneticButton,
   Card,
@@ -70,44 +70,8 @@ export default function Page() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [cyclesHist, setCyclesHist] = useState<number[]>([]);
   const [queueHist, setQueueHist] = useState<number[]>([]);
-  const [activeSection, setActiveSection] = useState("overview");
   const contentRef = useRef<HTMLDivElement>(null);
   const bump = useCallback(() => setRefreshKey((k) => k + 1), []);
-
-  // Scroll within the inner content panel (reliable regardless of CopilotKit's wrapper).
-  const navigate = useCallback((id: string) => {
-    const el = document.getElementById(id);
-    const container = contentRef.current;
-    if (!el) return;
-    if (container) {
-      const top =
-        el.getBoundingClientRect().top -
-        container.getBoundingClientRect().top +
-        container.scrollTop -
-        56; // 56px = sticky header height
-      container.scrollTo({ top, behavior: "smooth" });
-    } else {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, []);
-
-  // Section spy — watch the same scroll container.
-  useEffect(() => {
-    const container = contentRef.current;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((e) => {
-          if (e.isIntersecting) setActiveSection(e.target.id || "overview");
-        });
-      },
-      { root: container ?? null, rootMargin: "-30% 0px -55% 0px", threshold: 0 },
-    );
-    SECTION_ITEMS.forEach(({ id }) => {
-      const el = document.getElementById(id);
-      if (el) obs.observe(el);
-    });
-    return () => obs.disconnect();
-  }, []);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -493,10 +457,8 @@ export default function Page() {
     ),
   });
 
-  const activeLabel = NAV_ITEMS.find((n) => n.id === activeSection)?.label ?? "Overview";
-
   return (
-    <div className="flex min-h-screen bg-black">
+    <>
       <ScrollProgress containerRef={contentRef} />
       <CommandMenu
         running={!!running}
@@ -505,14 +467,18 @@ export default function Page() {
         onToggleAuto={doToggleAuto}
       />
 
-      <Sidebar active={activeSection} online={online} onNavigate={navigate} />
-
-      <div ref={contentRef} className="flex h-screen min-w-0 flex-1 flex-col overflow-y-auto">
+      <motion.div
+        ref={contentRef}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        className="flex h-screen min-w-0 flex-1 flex-col overflow-y-auto"
+      >
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-neutral-900 bg-black/50 px-6 backdrop-blur-md">
           <Aurora />
           <div className="flex min-w-0 flex-col leading-tight">
             <h1 className="text-sm font-semibold tracking-tight text-neutral-100">
-              {activeLabel}
+              Dashboard
             </h1>
             <span className="truncate text-[11px] text-neutral-500">
               autonomous podcast → shorts factory
@@ -645,7 +611,7 @@ export default function Page() {
         </main>
 
         <ActivityTicker />
-      </div>
-    </div>
+      </motion.div>
+    </>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import {
   Play,
@@ -35,6 +36,7 @@ export default function CommandMenu({
   onToggleAuto: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -124,7 +126,7 @@ export default function CommandMenu({
             <ListVideo size={15} className="text-neutral-500" />
             Discovered Queue
           </Command.Item>
-          <Command.Item className={itemCls} onSelect={() => run(() => scrollToSection("analytics"))}>
+          <Command.Item className={itemCls} onSelect={() => run(() => router.push("/analytics"))}>
             <BarChart3 size={15} className="text-neutral-500" />
             Analytics
           </Command.Item>

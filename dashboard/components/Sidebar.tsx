@@ -5,13 +5,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Clapperboard,
   LayoutDashboard,
-  Activity,
-  Wand2,
-  TrendingUp,
-  Flame,
   BarChart3,
-  Compass,
-  Info,
+  Settings,
   PanelLeftClose,
   PanelLeft,
   X,
@@ -25,53 +20,28 @@ export interface NavItem {
   label: string;
   icon: LucideIcon;
   accent: string;
-  /** When set, the item navigates to this route instead of scrolling to a section. */
-  route?: string;
+  route: string;
 }
 
+// Two top-level destinations only: the whole mission-control dashboard lives under one
+// "Dashboard" tab; analytics is its own page.
 export const NAV_ITEMS: NavItem[] = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard, accent: "text-neutral-200" },
-  { id: "live-pipeline", label: "Pipeline", icon: Activity, accent: "text-violet-400" },
-  { id: "editing-studio", label: "Editing", icon: Wand2, accent: "text-fuchsia-400" },
-  { id: "virality-predictor", label: "Virality", icon: TrendingUp, accent: "text-rose-400" },
-  { id: "viral-moments", label: "Clips", icon: Flame, accent: "text-amber-400" },
-  { id: "discovered-queue", label: "Discovery", icon: Compass, accent: "text-cyan-400" },
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, accent: "text-neutral-200", route: "/" },
   { id: "analytics", label: "Analytics", icon: BarChart3, accent: "text-blue-400", route: "/analytics" },
 ];
 
-/** Section-scroll items only (used for in-page scroll-spy on the home dashboard). */
-export const SECTION_ITEMS = NAV_ITEMS.filter((n) => !n.route);
-
-export default function Sidebar({
-  active,
-  online,
-  onNavigate,
-}: {
-  active?: string;
-  online: boolean | null;
-  onNavigate?: (id: string) => void;
-}) {
+export default function Sidebar({ online }: { online: boolean | null }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [aboutOpen, setAboutOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   const width = collapsed ? "w-16" : "w-56";
 
-  const handleNavigate = (item: NavItem) => {
-    if (item.route) {
-      router.push(item.route);
-      return;
-    }
-    // Section item: scroll in-place on home, otherwise route home to the anchor.
-    if (pathname === "/" && onNavigate) onNavigate(item.id);
-    else router.push(`/#${item.id}`);
-  };
-
-  const isItemActive = (item: NavItem) => {
-    if (item.route) return pathname === item.route || pathname.startsWith(`${item.route}/`);
-    return pathname === "/" && active === item.id;
-  };
+  const isItemActive = (item: NavItem) =>
+    item.route === "/"
+      ? pathname === "/"
+      : pathname === item.route || pathname.startsWith(`${item.route}/`);
 
   return (
     <>
@@ -80,12 +50,12 @@ export default function Sidebar({
         transition={{ type: "spring", stiffness: 300, damping: 32 }}
         className={`sticky top-0 z-40 flex h-screen ${width} shrink-0 flex-col border-r border-neutral-900 bg-black/60 backdrop-blur-md`}
       >
-        {/* Brand */}
+        {/* Brand — click returns to the dashboard */}
         <button
           onClick={() => router.push("/")}
-          className="flex h-14 items-center gap-2.5 border-b border-neutral-900 px-4 text-left"
+          className="group flex h-14 items-center gap-2.5 border-b border-neutral-900 px-4 text-left transition-colors hover:bg-neutral-950/60"
         >
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-neutral-800 bg-neutral-950">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-neutral-800 bg-neutral-950 transition-colors group-hover:border-neutral-700">
             <Clapperboard size={16} className="text-neutral-100" />
           </div>
           {!collapsed && (
@@ -103,7 +73,7 @@ export default function Sidebar({
             const button = (
               <button
                 key={item.id}
-                onClick={() => handleNavigate(item)}
+                onClick={() => router.push(item.route)}
                 className={`group relative flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors ${
                   isActive
                     ? "bg-neutral-900/70 text-neutral-100"
@@ -136,7 +106,7 @@ export default function Sidebar({
           })}
         </nav>
 
-        {/* Footer: health + about + collapse */}
+        {/* Footer: health + settings + collapse */}
         <div className="flex flex-col gap-1 border-t border-neutral-900 p-3">
           <div
             title={
@@ -162,7 +132,7 @@ export default function Sidebar({
             </span>
             {!collapsed && (
               <span
-                className={`font-mono text-[10px] uppercase tracking-wide ${
+                className={`text-[10px] uppercase tracking-wide ${
                   online === null
                     ? "text-neutral-500"
                     : online
@@ -176,21 +146,21 @@ export default function Sidebar({
           </div>
 
           {collapsed ? (
-            <Tooltip label="About ClipPilot">
+            <Tooltip label="Settings">
               <button
-                onClick={() => setAboutOpen(true)}
+                onClick={() => setSettingsOpen(true)}
                 className="flex w-full items-center justify-center rounded-md px-2.5 py-2 text-neutral-500 transition-colors hover:bg-neutral-950 hover:text-neutral-300"
               >
-                <Info size={16} />
+                <Settings size={16} />
               </button>
             </Tooltip>
           ) : (
             <button
-              onClick={() => setAboutOpen(true)}
+              onClick={() => setSettingsOpen(true)}
               className="flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm text-neutral-500 transition-colors hover:bg-neutral-950 hover:text-neutral-300"
             >
-              <Info size={16} className="shrink-0" />
-              <span>About</span>
+              <Settings size={16} className="shrink-0" />
+              <span>Settings</span>
             </button>
           )}
 
@@ -206,7 +176,7 @@ export default function Sidebar({
         </div>
       </motion.aside>
 
-      <AboutModal open={aboutOpen} online={online} onClose={() => setAboutOpen(false)} />
+      <SettingsModal open={settingsOpen} online={online} onClose={() => setSettingsOpen(false)} />
     </>
   );
 }
@@ -218,7 +188,14 @@ const LANES = [
   { dot: "bg-amber-400", name: "Lane D · Dashboard", desc: "this mission-control surface" },
 ];
 
-function AboutModal({
+const SHORTCUTS = [
+  { keys: ["R"], label: "Run one cycle" },
+  { keys: ["D"], label: "Discover podcasts" },
+  { keys: ["A"], label: "Toggle autonomous loop" },
+  { keys: ["⌘", "K"], label: "Command menu" },
+];
+
+function SettingsModal({
   open,
   online,
   onClose,
@@ -243,15 +220,15 @@ function AboutModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: 10 }}
             transition={{ type: "spring", stiffness: 360, damping: 30 }}
-            className="fixed left-1/2 top-1/2 z-[91] w-[92vw] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950 shadow-2xl"
+            className="fixed left-1/2 top-1/2 z-[91] max-h-[85vh] w-[92vw] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-neutral-800 bg-neutral-950 shadow-2xl"
           >
-            <div className="flex items-center justify-between border-b border-neutral-900 px-5 py-3.5">
+            <div className="sticky top-0 flex items-center justify-between border-b border-neutral-900 bg-neutral-950/95 px-5 py-3.5 backdrop-blur">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-7 w-7 items-center justify-center rounded-md border border-neutral-800 bg-black">
-                  <Clapperboard size={14} className="text-neutral-100" />
+                  <Settings size={14} className="text-neutral-100" />
                 </div>
                 <span className="text-sm font-semibold tracking-tight text-neutral-100">
-                  ClipPilot
+                  Settings &amp; About
                 </span>
               </div>
               <button
@@ -263,12 +240,19 @@ function AboutModal({
             </div>
 
             <div className="space-y-5 px-5 py-5">
-              <p className="text-sm leading-relaxed text-neutral-400">
-                An autonomous agent that finds trending podcasts, clips viral moments into
-                vertical shorts, auto-posts them, measures performance, learns, and repeats —
-                with no human in the loop after launch.
-              </p>
+              {/* About */}
+              <div>
+                <div className="mb-2 text-[10px] font-medium uppercase tracking-widest text-neutral-500">
+                  About ClipPilot
+                </div>
+                <p className="text-sm leading-relaxed text-neutral-400">
+                  An autonomous agent that finds trending podcasts, clips viral moments into
+                  vertical shorts, auto-posts them, measures performance, learns, and repeats —
+                  with no human in the loop after launch.
+                </p>
+              </div>
 
+              {/* Architecture */}
               <div>
                 <div className="mb-2 text-[10px] font-medium uppercase tracking-widest text-neutral-500">
                   Architecture
@@ -279,50 +263,79 @@ function AboutModal({
                       <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${l.dot}`} />
                       <div>
                         <div className="text-xs text-neutral-200">{l.name}</div>
-                        <div className="font-mono text-[10px] text-neutral-600">{l.desc}</div>
+                        <div className="text-[10px] text-neutral-600">{l.desc}</div>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="flex items-center justify-between rounded-lg border border-neutral-900 bg-black px-3 py-2.5">
-                <span className="text-[10px] font-medium uppercase tracking-widest text-neutral-500">
-                  Orchestrator
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      online === null
-                        ? "bg-neutral-600"
-                        : online
-                          ? "bg-emerald-400"
-                          : "bg-rose-500"
-                    }`}
-                  />
-                  <span
-                    className={`font-mono text-[10px] uppercase ${
-                      online === null
-                        ? "text-neutral-500"
-                        : online
-                          ? "text-emerald-400/90"
-                          : "text-rose-400/90"
-                    }`}
-                  >
-                    {online === null ? "connecting" : online ? "online" : "offline"}
+              {/* System status */}
+              <div>
+                <div className="mb-2 text-[10px] font-medium uppercase tracking-widest text-neutral-500">
+                  System
+                </div>
+                <div className="flex items-center justify-between rounded-lg border border-neutral-900 bg-black px-3 py-2.5">
+                  <span className="text-xs text-neutral-400">Orchestrator (Lane A)</span>
+                  <span className="flex items-center gap-1.5">
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        online === null
+                          ? "bg-neutral-600"
+                          : online
+                            ? "bg-emerald-400"
+                            : "bg-rose-500"
+                      }`}
+                    />
+                    <span
+                      className={`text-[10px] uppercase ${
+                        online === null
+                          ? "text-neutral-500"
+                          : online
+                            ? "text-emerald-400/90"
+                            : "text-rose-400/90"
+                      }`}
+                    >
+                      {online === null ? "connecting" : online ? "online" : "offline"}
+                    </span>
                   </span>
-                </span>
+                </div>
               </div>
 
+              {/* Keyboard shortcuts */}
+              <div>
+                <div className="mb-2 text-[10px] font-medium uppercase tracking-widest text-neutral-500">
+                  Keyboard shortcuts
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {SHORTCUTS.map((s) => (
+                    <div key={s.label} className="flex items-center justify-between">
+                      <span className="text-xs text-neutral-400">{s.label}</span>
+                      <span className="flex items-center gap-1">
+                        {s.keys.map((k) => (
+                          <kbd
+                            key={k}
+                            className="rounded border border-neutral-800 bg-black px-1.5 py-0.5 text-[10px] text-neutral-400"
+                          >
+                            {k}
+                          </kbd>
+                        ))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Powered by */}
               <div>
                 <div className="mb-2 text-[10px] font-medium uppercase tracking-widest text-neutral-500">
                   Powered by
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {["OpenAI", "Redis", "CopilotKit", "YouTube"].map((s) => (
+                  {["OpenAI", "Redis", "CopilotKit", "YouTube", "W&B Weave"].map((s) => (
                     <span
                       key={s}
-                      className="inline-flex items-center gap-1 rounded-md border border-neutral-800 bg-black px-2 py-0.5 font-mono text-[10px] text-neutral-400"
+                      className="inline-flex items-center gap-1 rounded-md border border-neutral-800 bg-black px-2 py-0.5 text-[10px] text-neutral-400"
                     >
                       <Circle size={6} className="fill-neutral-600 text-neutral-600" />
                       {s}
