@@ -8,6 +8,7 @@ import {
   Flame,
   BarChart3,
   Compass,
+  History,
   Info,
   PanelLeftClose,
   PanelLeft,
@@ -28,6 +29,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard, accent: "text-neutral-200" },
   { id: "live-pipeline", label: "Pipeline", icon: Activity, accent: "text-violet-400" },
   { id: "viral-moments", label: "Clips", icon: Flame, accent: "text-amber-400" },
+  { id: "clip-history", label: "History", icon: History, accent: "text-emerald-400" },
   { id: "analytics", label: "Analytics", icon: BarChart3, accent: "text-blue-400" },
   { id: "discovered-queue", label: "Discovery", icon: Compass, accent: "text-cyan-400" },
 ];

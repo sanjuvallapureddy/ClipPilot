@@ -33,8 +33,14 @@ export async function GET() {
       likes: parseInt(fields.likes || "0", 10),
       shares: parseInt(fields.shares || "0", 10),
       engagement_score: parseFloat(fields.engagement_score || "0"),
+      created_at: parseFloat(fields.created_at || "0"),
+      updated_at: parseFloat(fields.updated_at || fields.created_at || "0"),
     });
   }
-  clips.sort((a, b) => b.engagement_score - a.engagement_score);
+  clips.sort((a, b) => {
+    const bTime = Date.parse(b.posted_at || "") || b.updated_at * 1000 || b.created_at * 1000;
+    const aTime = Date.parse(a.posted_at || "") || a.updated_at * 1000 || a.created_at * 1000;
+    return bTime - aTime || b.engagement_score - a.engagement_score;
+  });
   return Response.json({ clips });
 }

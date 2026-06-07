@@ -21,6 +21,7 @@ import ActivityTicker from "@/components/ActivityTicker";
 import CommandMenu from "@/components/CommandMenu";
 import YouTubeConnect from "@/components/YouTubeConnect";
 import ManualUpload from "@/components/ManualUpload";
+import RecentClipHistory from "@/components/RecentClipHistory";
 import Sidebar, { NAV_ITEMS } from "@/components/Sidebar";
 import Aurora from "@/components/Aurora";
 import ScrollProgress from "@/components/ScrollProgress";
@@ -466,6 +467,9 @@ export default function Page() {
           <div className="flex flex-col gap-4">
             <Reveal id="viral-moments" className="scroll-mt-20">
               <ClipsGallery refreshKey={refreshKey} />
+            </Reveal>
+            <Reveal id="clip-history" className="scroll-mt-20">
+              <RecentClipHistory refreshKey={refreshKey} />
             </Reveal>
             <Reveal id="analytics" className="scroll-mt-20">
               <Analytics refreshKey={refreshKey} />
