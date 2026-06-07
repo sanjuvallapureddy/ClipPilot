@@ -162,7 +162,7 @@ export default function Analytics({ refreshKey }: { refreshKey: number }) {
               <motion.span
                 className="block h-full rounded-full bg-neutral-100"
                 initial={{ width: 0 }}
-                whileInView={{ width: `${Math.min(100, t.avg_engagement * 100)}%` }}
+                whileInView={{ width: `${Math.min(100, formatScore(t.avg_engagement))}%` }}
                 viewport={{ once: true, margin: "-20px" }}
                 transition={{ duration: 0.9, delay: i * 0.05 + 0.1, ease: [0.22, 1, 0.36, 1] }}
               />

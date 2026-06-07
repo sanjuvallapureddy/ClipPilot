@@ -2,6 +2,7 @@
 // and derives aggregates (distributions, funnel, per-topic). Never fabricates metrics:
 // views/likes/shares stay 0 until a clip is really posted. Resilient when Redis is down.
 import { KEYS, redis, resultKey } from "@/lib/redis";
+import { formatScore } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -99,9 +100,9 @@ export async function GET() {
     const shares = clips.reduce((a, c) => a + c.shares, 0);
     const avgVirality =
       clips.length > 0
-        ? clips.reduce((a, c) => a + c.engagement, 0) / clips.length
+        ? formatScore(clips.reduce((a, c) => a + c.engagement, 0) / clips.length)
         : 0;
-    const topVirality = clips.reduce((m, c) => Math.max(m, c.engagement), 0);
+    const topVirality = formatScore(clips.reduce((m, c) => Math.max(m, c.engagement), 0));
 
     // Per-topic aggregation.
     const topicMap: Record<
@@ -117,19 +118,22 @@ export async function GET() {
       .map(([topic, v]) => ({
         topic,
         clips: v.eng.length,
-        avgEngagement: v.eng.reduce((a, b) => a + b, 0) / Math.max(v.eng.length, 1),
+        avgEngagement: formatScore(
+          v.eng.reduce((a, b) => a + b, 0) / Math.max(v.eng.length, 1),
+        ),
         views: v.views,
         posted: v.posted,
       }))
       .sort((a, b) => b.avgEngagement - a.avgEngagement);
 
-    // Virality distribution (0-1 in 0.1 buckets).
+    // Virality distribution (0–100 in 10-point buckets).
     const scoreBuckets = Array.from({ length: 10 }, (_, i) => ({
-      bucket: `${(i / 10).toFixed(1)}–${((i + 1) / 10).toFixed(1)}`,
+      bucket: `${i * 10}–${i * 10 + 9}`,
       count: 0,
     }));
     for (const c of clips) {
-      const idx = Math.min(9, Math.max(0, Math.floor(c.engagement * 10)));
+      const score = formatScore(c.engagement);
+      const idx = Math.min(9, Math.max(0, Math.floor(score / 10)));
       scoreBuckets[idx].count += 1;
     }
 

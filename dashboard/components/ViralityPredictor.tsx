@@ -34,7 +34,7 @@ import { useCopilotChatSuggestions, useChatContext } from "@copilotkit/react-ui"
 import { getClipPredictions, getBestPrediction } from "@/lib/virality-mock";
 import type { LucideIcon } from "lucide-react";
 import { SectionCard, Badge, GlowMetricCard, OdometerNumber, Button } from "@/components/ui";
-import { formatScore } from "@/lib/format";
+import { formatScore, formatPercent } from "@/lib/format";
 import { compact } from "@/lib/num";
 
 const CHART_TOOLTIP = {
@@ -119,8 +119,8 @@ export default function ViralityPredictor() {
 
   const compareData = clips.map((c) => ({
     name: `#${c.rank}`,
-    virality: c.virality_score,
-    retention: c.predicted_retention_pct,
+    virality: formatScore(c.virality_score),
+    retention: formatScore(c.predicted_retention_pct),
     views: Math.round(c.predicted_views / 1000),
   }));
 
@@ -355,7 +355,7 @@ export default function ViralityPredictor() {
         <GlowMetricCard
           title="Virality"
           variant="amber"
-          value={selected.virality_score}
+          value={formatScore(selected.virality_score)}
           description="/ 100"
         />
         <GlowMetricCard
@@ -368,7 +368,7 @@ export default function ViralityPredictor() {
           title="Retention"
           variant="cyan"
           icon={Percent}
-          value={`${selected.predicted_retention_pct}%`}
+          value={formatPercent(selected.predicted_retention_pct)}
           description="avg"
         />
         <GlowMetricCard

@@ -97,6 +97,12 @@ def stop() -> dict:
     return {"status": "stopped"}
 
 
+@app.get("/health")
+def health() -> dict:
+    """Lightweight liveness probe — no Redis required."""
+    return {"ok": True, "service": "discovery-orchestrator"}
+
+
 @app.get("/status")
 def status() -> dict:
     r = get_client()

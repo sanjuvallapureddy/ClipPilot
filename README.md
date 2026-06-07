@@ -1,120 +1,223 @@
-**ClipPilot** 🎬🤖
+# ClipPilot
 
-The Autonomous Multi-Agent Short-Form Video Factory
-ClipPilot is a production-grade, zero-human-in-the-loop autonomous pipeline that orchestrates the entire lifecycle of viral content acquisition, refinement, generation, distribution, and performance optimization.
+Autonomous multi-agent pipeline for discovering trending long-form video, clipping viral moments into 9:16 shorts, posting to social platforms, and feeding performance back into discovery.
 
-Instead of building a monolithic application or relying on manual video clipping workflows, ClipPilot implements a decoupled, event-driven mesh of four independent, specialized AI agents. The system constantly monitors cultural trends, ingests high-signal audio/video assets, parses raw conversational transcripts via semantic heuristics, predicts viral coefficient hooks, handles multi-platform distribution, and feeds real-time performance analytics back into the discovery engine to dynamically adjust target parameters for the next iteration loop.
+Built at Fire Hacks by a 4-person team. Four async Python lanes (A/B/C + agent chat) plus a Next.js dashboard (Lane D) communicate **only** through a shared Redis contract in `shared/keys.py`.
 
-Built in 24 hours at Fire Hacks by a 4-person elite engineering team.
+---
 
-🚀 Sponsor Integration & Tooling Stack
-To deliver a production-ready infrastructure under extreme time-box constraints, the architectural design maximizes the leverage of high-end sponsor primitives across data persistence, real-time context streaming, AI abstraction, and developer velocity.
+## Sponsor tools — how we actually use them (with file evidence)
 
-1. Redis (State Backbone, Pub/Sub, & Shared Contract)
-Redis acts as the central central nervous system of ClipPilot. Given the async, multi-lane python microservice layout, we completely decoupled the execution tracks by enforcing a deterministic data contract through a Redis-Stack instance.
+Each integration below is wired in production code paths, not marketing copy. Paths are relative to the repo root.
 
-Message Broker: We leveraged Redis Pub/Sub to power the chat:stream channel, enabling real-time, peer-to-peer communication between agent personas (Scout, Cutter, Coach, Pilot) in the team workspace.
+### 1. Redis — contract layer between all lanes
 
-State Management & Queues: Ingestion sequences are tracked using Redis List primitives (discovery:queue). Individual processing pipelines are managed as atomic Redis Hashes (jobs:{id}), preventing race conditions among multiple workers. Analytical trends and historical vector adjustments are cached directly in key-value strings (patterns:current).
+**What it does:** Single source of truth for discovery queues, job state, clip results, patterns, coordination logs, and team chat.
 
-2. CopilotKit (Context-Aware Front-End AI Portal)
-Instead of forcing users to rely on conventional button triggers to monitor or override autonomous processes, CopilotKit was integrated directly into our Next.js Vercel/Linear-inspired front-end layout.
+**Evidence:**
 
-In-App Cloud Copilot: CopilotKit wraps the frontend context, allowing the user to seamlessly interact with the multi-agent backend using natural language commands (e.g., "Find trending tech podcasts and clip the most controversial moments").
+| Primitive | Key / stream | File |
+|-----------|--------------|------|
+| Discovery queue | `discovery:queue` (Stream) | `shared/keys.py`, Lane A writes via `discovery_orchestrator/` |
+| Job hashes | `jobs:{job_id}` (Hash) | `shared/redis_client.py` → `write_job()` |
+| Job events | `jobs:stream` (Stream) | `shared/redis_client.py` → `emit_job_event()` |
+| Clip results | `results:{clip_id}` (Hash), `results:all` (Set) | `shared/keys.py`, Lane C writes in `engine/pipeline.py` |
+| Winning patterns | `patterns:current` (JSON string) | Lane B writes in `performance/worker.py`, Lane A reads in `discovery_orchestrator/app.py` |
+| Coordination log | `coord:log` (Stream) | `shared/redis_client.py` → `coord()` |
+| Team chat | `chat:stream` (Stream) | `shared/keys.py`, `agent_chat/worker.py` tails and posts |
+| Vector search | `idx:trends` (RediSearch HNSW) | `shared/redis_client.py` → `ensure_trends_index()` |
 
-State Hydration: It continuously maps real-time data from the underlying Redis stream into actionable front-end components, giving the human controller intuitive co-navigation capabilities over an otherwise completely autonomous system.
+**Dashboard bridge:** `dashboard/lib/redis.ts` reads the same keys server-side (ioredis). API routes: `dashboard/app/api/queue/route.ts`, `clips/route.ts`, `analytics/route.ts`.
 
-3. Cursor (Rapid Multithreading Development Environment)
-Building a 4-lane asynchronous application layout with a unified data schema within 24 hours requires massive developer velocity. Cursor (Pro Plan features) was utilized to eliminate context-switching overhead and scaffold the infrastructure.
+**Note:** Chat uses **Redis Streams** (`XADD` / `XREAD`), not Pub/Sub. Requires **redis-stack** (RediSearch + RedisJSON) for the trends vector index.
 
-Cursor Composer: Used to simultaneously rewrite and manage files across the backend FastAPI lanes, python worker pools, and the frontend React framework without breaking the shared structural type definition boundaries (shared/).
+---
 
-Multi-File Context Aggregation: Allowed our team to instantly refactor the entire application visual structure from a generic, gradient-heavy dashboard layout into an ultra-clean, high-density, true-black appearance inspired by premium developer platforms.
+### 2. OpenAI — embeddings, GPT scoring, Whisper, copilot chat
 
-4. OpenAI (Intellectual Layer & Agent Personality Profiles)
-OpenAI's underlying models drive both the qualitative logic and the collaboration layers within the application.
+**What it does:** Trend embeddings, moment/hook scoring, agent chat personas, dashboard CopilotKit chat, and voice transcription fallback.
 
-Semantic Analysis & Hook Evaluation: Real-time transcripts pulled by our workers are evaluated via structured GPT-4o-mini prompts to score hooks, define start/end timestamps, and extract optimal 9:16 portrait composition frames based on calculated high-engagement quotes.
+**Evidence:**
 
-Agent "Slack" Persona Workspace: Each system lane is assigned a highly specialized OpenAI system prompt, enabling them to chat as peer teammates inside the workspace console, analyzing pipeline logs and making collaborative execution decisions without a rigid orchestrator.
+| Use | File |
+|-----|------|
+| Embeddings (`text-embedding-3-small`, 1536-dim) | `shared/keys.py` (`TREND_VECTOR_DIM`), discovery scoring |
+| GPT moment / virality scoring | `engine/pipeline.py`, `discovery_orchestrator/discovery.py` |
+| Agent team chat (Scout/Cutter/Coach/Pilot) | `agent_chat/brain.py`, `shared/personas.py` |
+| CopilotKit sidebar chat | `dashboard/app/api/copilotkit/[[...all]]/route.ts` (`OpenAIAdapter`, `COPILOT_MODEL`) |
+| Voice → text (Whisper) | `dashboard/app/api/transcribe/route.ts` |
 
-5. Upload-Post (Target Distribution Gateway)
-Upload-Post provides the critical programmatic egress layer for ClipPilot's output assets. Once a video clip finishes compilation, it hits the Upload-Post API endpoints, abstracting away complex multi-platform authentication tokens, rate-limiting rules, and metadata requirements for rapid scheduling across TikTok, Instagram Reels, and YouTube Shorts.
+Env: `OPENAI_API_KEY`, `OPENAI_MODEL`, `EMBED_MODEL`, `COPILOT_MODEL`, `CHAT_MODEL` in `.env.example`.
 
-6. OpenShorts (The Video Render & Composition Core)
-ClipPilot handles the autonomy layer, while OpenShorts serves as our concrete underlying rendering architecture. The backend engine wraps the open-source OpenShorts rendering interface, firing structured POST /process payloads containing our extracted GPT timestamps, asset URLs, and crop parameters to execute hardware-accelerated video composition and overlay placement.
+---
 
-🧬 Architectural Topology
-ClipPilot is split into four isolated, asynchronous lanes that maintain isolation and interact exclusively through the Redis Contract Layer or explicit third-party API networks.
+### 3. CopilotKit — mission-control copilot in the dashboard
 
+**What it does:** In-app AI that **operates** ClipPilot via server actions instead of giving generic coding advice.
+
+**Evidence:**
+
+| Feature | File |
+|---------|------|
+| Runtime + OpenAI adapter | `dashboard/app/api/copilotkit/[[...all]]/route.ts` |
+| Readable context (orchestrator status, queue, clips, virality) | `dashboard/app/page.tsx` — six `useCopilotReadable` hooks |
+| Actions: discover, research, run pipeline, start/stop loop, analytics | `dashboard/app/page.tsx` — `useCopilotAction` |
+| State-aware suggestion chips | `useCopilotChatSuggestions` in `page.tsx`, `ViralityPredictor.tsx` |
+| Generative UI cards for action results | `render` callbacks on each `useCopilotAction` |
+| Sidebar shell | `dashboard/components/Sidebar.tsx` (CopilotKit sidebar provider in layout) |
+
+Control bridge proxies to Lane A: `dashboard/app/api/control/route.ts` → `DISCOVERY_API_URL`.
+
+---
+
+### 4. OpenShorts — vertical clip render pipeline (Lane C)
+
+**What it does:** Submits YouTube URLs to OpenShorts for download → moment detection → 9:16 reframe → caption burn; polls job status and collects served clip URLs.
+
+**Evidence:**
+
+| Step | File |
+|------|------|
+| `POST /api/process`, poll `/api/status/{job_id}` | `engine/openshorts_client.py` |
+| Per-clip subtitle burn | `POST /api/subtitle` in `engine/openshorts_client.py` |
+| Pipeline integration | `engine/pipeline.py` |
+| Most-replayed window pre-selection (yt-dlp heatmap) | `engine/most_replayed.py` |
+| Title overlay burn (ffmpeg) | `engine/overlay.py`, `engine/titles.py` |
+
+Env: `OPENSHORTS_API_URL`, `OPENSHORTS_PUBLIC_URL`, `OPENSHORTS_TIMEOUT_SECONDS`.
+
+Clips carry honest `render_status` (`pending` until OpenShorts returns a file) — see `shared/schemas.py` (`ClipResult`).
+
+---
+
+### 5. Upload-Post — guarded social publishing (Lane C)
+
+**What it does:** Posts rendered shorts to TikTok / Instagram / YouTube when credentials and a real rendered file exist. **No fake posts.**
+
+**Evidence:**
+
+| Step | File |
+|------|------|
+| Guarded publish hook | `engine/publish.py` → `publish_clip()` |
+| Requires `UPLOAD_POST_API_KEY` + `render_status=="rendered"` + file on disk | `engine/publish.py` lines 37–48 |
+| Performance metrics collection | `performance/collector.py` |
+
+Env: `UPLOAD_POST_API_KEY` in `.env.example`.
+
+---
+
+### 6. Weave (Weights & Biases) — optional LLM tracing (Lane C)
+
+**What it does:** Traces GPT calls in the engine pipeline when `WEAVE_PROJECT` + `WANDB_API_KEY` are set. No-op otherwise.
+
+**Evidence:**
+
+| Step | File |
+|------|------|
+| `@weave.op()` wrapper, safe no-op fallback | `engine/observability.py` |
+| Used in pipeline scoring | `engine/pipeline.py` imports `observability.op` |
+| Dashboard status panel | `dashboard/components/WeaveObservability.tsx`, `dashboard/app/api/weave/status/route.ts` |
+
+Env: `WEAVE_PROJECT`, `WANDB_API_KEY` / `WEAVE_API_KEY`.
+
+---
+
+## Architecture
+
+```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                                 LANE D                                  │
-│             dashboard/ Next.js UI + CopilotKit Mission Control          │
-└────────────────────────────────────┬────────────────────────────────────┘
-                                     │ (Reads/Writes)
-                                     ▼
+│  LANE D — dashboard/ (Next.js 14 + CopilotKit)                          │
+└───────────────────────────────┬─────────────────────────────────────────┘
+                                │ reads/writes Redis + proxies Lane A
+                                ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                          REDIS CONTRACT LAYER                           │
-│        Shared/ Data Keys (`shared/keys.py`, `schemas.py`, `types.ts`)     │
-│  [Data Flow]: discovery:queue ──► jobs:{id} ──► patterns:current        │
+│  REDIS CONTRACT — shared/keys.py, shared/schemas.py, dashboard/lib/types.ts │
+│  discovery:queue → jobs:{id} → results:{clip_id} → patterns:current     │
 └──────┬─────────────────────────────┬─────────────────────────────┬──────┘
-       │                             │                             │
        ▼                             ▼                             ▼
 ┌──────────────┐              ┌──────────────┐              ┌──────────────┐
-│    LANE A    │              │    LANE B    │              │    LANE C    │
-│  discovery-  │              │ performance/ │              │   engine/    │
-│ orchestrator │              │ Metric Logs, │              │ OpenShorts   │
-│ Trending API │              │ Pattern Logs │              │ Video Engine │
-│  & Ingestion │              │  & Learning  │              │ API Wrapper  │
+│  LANE A      │              │  LANE B      │              │  LANE C      │
+│  discovery-  │              │  performance/│              │  engine/     │
+│  orchestrator│              │  metrics +   │              │  OpenShorts  │
+│  :8000       │              │  patterns    │              │  wrapper :8001│
 └──────────────┘              └──────────────┘              └──────────────┘
-Lane Layout Breakdowns
-Lane A — discovery-orchestrator/: A FastAPI worker cluster tasked with scanning public platforms for trending long-form podcasts, computing engagement velocities, and pushing high-signal links into the central execution stack.
+       agent_chat/worker — peer LLM personas on chat:stream (Scout/Cutter/Coach/Pilot)
+```
 
-Lane B — performance/: An analytical monitoring worker that captures raw performance telemetry from active distribution channels, runs comparative A/B variant indexing, and mutates target selection patterns.
+| Lane | Path | Role |
+|------|------|------|
+| A | `discovery_orchestrator/` | Trend discovery, queueing, autonomous loop (`/start`, `/stop`, `/run-once`) |
+| B | `performance/` | Polls post metrics, writes `patterns:current` |
+| C | `engine/` | Transcript + GPT moments → OpenShorts render → Upload-Post |
+| D | `dashboard/` | Mission control UI, CopilotKit, analytics |
+| Chat | `agent_chat/` | Streams-backed team workspace |
 
-Lane C — engine/: The programmatic video rendering driver acting as an optimized wrapper around the OpenShorts engine infrastructure.
+---
 
-Lane D — dashboard/: A premium, low-friction developer workstation tracking interface built using Next.js, Tailwind CSS, and CopilotKit.
+## Quick start (local)
 
-agent_chat/: A simulated operational chat engine mapping background pipelines into clear conversational logs where all 4 agents coordinate work in distinct communication channels.
+**Prerequisites:** Python 3.10+, Node.js 18+, Redis (Docker or [Memurai](https://www.memurai.com/) on Windows).
 
-📊 Technical Implementation Detail: Production Logs over Fake Data
-ClipPilot is architected on deterministic, live execution paths. There are no static JSON mocks or artificial data pipelines:
-
-Live Discovery Extraction: Employs an optimized yt-dlp integration to directly query real-time platform search metrics, capturing genuine titles, precise views, and cultural metadata arrays without requiring brittle developer API credentials.
-
-Transparent Pipeline Status Indicators: Video rendering (render_status) and channel distributions (post_status) map their direct upstream API conditions accurately. If an endpoint is unlinked, status bars clearly declare a state of pending or not_posted with exact numerical readouts remaining at absolute zero until verified values return from external trackers.
-
-🛠️ Quick Start & Local Setup
-System Prerequisites
-Ensure you have Python 3.10+, Node.js 18+, and Docker Desktop installed locally.
-
-Bash
-# 1. Clone the repository and configure your operational environment tokens
+```powershell
+# 1. Configure env
 cp .env.example .env
+# Set OPENAI_API_KEY. For local dev, DISCOVERY_API_URL=http://localhost:8000
 
-# 2. Spin up the localized Redis Stack cluster via Docker
-docker run -d --name clippilot-redis -p 6379:6379 redis/redis-stack:latest
+# 2. Bootstrap Redis + Lane A (Windows)
+.\scripts\start-local.ps1
 
-# 3. Initialize your python virtual isolation environment and build project dependencies
-python -m venv .venv
-source .venv/bin/activate  # On Windows use: .venv\Scripts\activate
-pip install -r requirements.txt
-
-# 4. Boot up the asynchronous microservice lanes via concurrent terminal streams
-uvicorn engine.app:app --port 8001                        # Boot Lane C (Video Engine Link)
-uvicorn discovery_orchestrator.app:app --port 8000        # Boot Lane A (Discovery Track)
-python -m performance.worker --loop                       # Active Lane B (Telemetry Worker)
-python -m agent_chat.worker --loop                        # Active Agent Workspace Workspace Logs
-
-# 5. Compile and launch the high-density frontend workstation
+# 3. Dashboard
 cd dashboard
 npm install
 npm run dev
-Navigate to http://localhost:3000 to interact with your local instance.
+```
 
-Triggering a Test Cycle
-To bypass the automatic background timers and manually fire a targeted extraction sequence, hit the ingestion router with a cURL payload:
+Open **http://localhost:3000**. Sidebar shows **systems online** when Lane A responds at `http://localhost:8000/health`.
 
-Bash
-curl -X POST localhost:8000/run-once -H 'content-type: application/json' -d '{"topic":"artific
+### Manual services (all platforms)
+
+```bash
+# Redis (Docker)
+docker run -d --name clippilot-redis -p 6379:6379 redis/redis-stack:latest
+
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+uvicorn discovery_orchestrator.app:app --port 8000   # Lane A
+uvicorn engine.app:app --port 8001                    # Lane C
+python -m performance.worker --loop                   # Lane B
+python -m agent_chat.worker --loop                      # Team chat
+
+cd dashboard && npm run dev                           # Lane D
+```
+
+### Trigger a test cycle
+
+```bash
+curl -X POST http://localhost:8000/run-once \
+  -H 'content-type: application/json' \
+  -d '{"topic":"tech"}'
+```
+
+---
+
+## Orchestrator status (dashboard)
+
+The sidebar polls `GET /api/control` every 4s (`dashboard/components/AppChrome.tsx`). That route:
+
+1. Checks Lane A `GET /health` (no Redis required)
+2. Falls back to `GET /status` for queue depth + loop state
+
+**"Orchestrator down"** means nothing is listening on port **8000** — start Lane A (see above). If Lane A is up but Redis is down, the dashboard stays online and shows a Redis hint.
+
+---
+
+## Virality scores
+
+Contract stores `engagement_score` / `trend_score` as **0–1 floats** in Redis. The dashboard displays **0–100 whole numbers** via `dashboard/lib/format.ts` → `formatScore()` (multiply by 100 when ≤ 1, then round).
+
+---
+
+## Real data policy
+
+No fake pipeline states: clips show `render_status=pending` until OpenShorts renders; `post_status=not_posted` until Upload-Post succeeds; views stay **0** until Lane B collects real metrics.

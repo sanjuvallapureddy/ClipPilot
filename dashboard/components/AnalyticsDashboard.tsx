@@ -70,10 +70,11 @@ function ramp(t: number, lo = RAMP_LO, hi = RAMP_HI) {
   return `rgb(${r}, ${g}, ${bl})`;
 }
 
-// Virality semantic (low → high) in soft, non-garish tones.
+// Virality semantic (low → high) in soft, non-garish tones. Scores are 0–100.
 function scoreColor(score: number) {
-  if (score >= 0.66) return "#34d399"; // emerald-400
-  if (score >= 0.33) return "#fbbf24"; // amber-400
+  const s = formatScore(score);
+  if (s >= 66) return "#34d399"; // emerald-400
+  if (s >= 33) return "#fbbf24"; // amber-400
   return "#f87171"; // red-400 (soft, not neon rose)
 }
 
@@ -211,7 +212,11 @@ export default function AnalyticsDashboard() {
     () =>
       clips
         .filter((c) => c.length > 0)
-        .map((c) => ({ length: c.length, virality: c.engagement, hook: c.hook || c.title })),
+        .map((c) => ({
+          length: c.length,
+          virality: formatScore(c.engagement),
+          hook: c.hook || c.title,
+        })),
     [clips],
   );
 
@@ -241,9 +246,11 @@ export default function AnalyticsDashboard() {
         const inBand = clips.filter((c) => c.length >= b.lo && c.length < b.hi);
         const avg =
           inBand.length > 0
-            ? inBand.reduce((a, c) => a + c.engagement, 0) / inBand.length
+            ? formatScore(
+                inBand.reduce((a, c) => a + c.engagement, 0) / inBand.length,
+              )
             : 0;
-        return { bucket: b.bucket, avg: Number(avg.toFixed(3)), n: inBand.length };
+        return { bucket: b.bucket, avg, n: inBand.length };
       })
       .filter((b) => b.n > 0);
   }, [clips]);
@@ -293,7 +300,7 @@ export default function AnalyticsDashboard() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.4fr_1fr]">
         <ChartCard
           title="Predicted virality distribution"
-          hint="GPT virality scores bucketed 0 → 1"
+          hint="GPT virality scores bucketed 0 → 100"
           icon={TrendingUp}
           empty={!hasData}
         >
@@ -452,7 +459,8 @@ export default function AnalyticsDashboard() {
               type="number"
               dataKey="virality"
               name="Virality"
-              domain={[0, 1]}
+              domain={[0, 100]}
+              allowDecimals={false}
               tick={{ fill: "#737373", fontSize: 10 }}
               tickLine={false}
               axisLine={false}
@@ -532,7 +540,7 @@ export default function AnalyticsDashboard() {
             <BarChart data={viralityByLength} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
               <CartesianGrid stroke="#171717" vertical={false} />
               <XAxis dataKey="bucket" tick={{ fill: "#737373", fontSize: 10 }} tickLine={false} axisLine={{ stroke: "#262626" }} />
-              <YAxis domain={[0, 1]} tick={{ fill: "#737373", fontSize: 10 }} tickLine={false} axisLine={false} />
+              <YAxis domain={[0, 100]} allowDecimals={false} tick={{ fill: "#737373", fontSize: 10 }} tickLine={false} axisLine={false} />
               <RTooltip
                 contentStyle={tooltipStyle}
                 labelStyle={{ color: "#a3a3a3" }}

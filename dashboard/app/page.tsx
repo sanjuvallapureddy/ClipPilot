@@ -641,7 +641,7 @@ export default function Page() {
             </div>
             <div className="text-neutral-500">
               “{result?.title}” · trend score{" "}
-              <span className="font-mono text-neutral-300">{result?.trend_score}</span>
+              <span className="font-mono text-neutral-300">{formatScore(result?.trend_score)}</span>
             </div>
             <div className="text-neutral-600">Watch it stream in Live Pipeline →</div>
           </div>
@@ -731,14 +731,14 @@ export default function Page() {
             {"clips" in result && result.clips ? (
               <>
                 <div className="font-mono text-emerald-400">
-                  Best: {result.best?.title} · score {result.best?.virality_score}/100
+                  Best: {result.best?.title} · score {formatScore(result.best?.virality_score)}/100
                 </div>
                 <p className="text-neutral-500">{result.best?.reasoning}</p>
               </>
             ) : (
               <>
                 <div className="font-mono text-neutral-300">
-                  {result.title} · {result.virality_score}/100
+                  {result.title} · {formatScore(result.virality_score)}/100
                 </div>
                 <ul className="list-inside list-disc text-neutral-500">
                   {(result.why_bullets || []).slice(0, 3).map((b: string, i: number) => (

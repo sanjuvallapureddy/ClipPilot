@@ -1,5 +1,6 @@
 // Analytics: engagement over time + current winning patterns.
 import { KEYS, redis, resultKey } from "@/lib/redis";
+import { formatScore } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -49,7 +50,9 @@ export async function GET() {
     const topicStats = Object.entries(byTopic)
       .map(([topic, v]) => ({
         topic,
-        avg_engagement: v.eng.reduce((a, b) => a + b, 0) / Math.max(v.eng.length, 1),
+        avg_engagement: formatScore(
+          v.eng.reduce((a, b) => a + b, 0) / Math.max(v.eng.length, 1),
+        ),
         views: v.views,
         clips: v.eng.length,
       }))
@@ -60,11 +63,14 @@ export async function GET() {
 
     const avgVirality =
       points.length > 0
-        ? points.reduce((a, p) => a + p.engagement, 0) / points.length
+        ? formatScore(points.reduce((a, p) => a + p.engagement, 0) / points.length)
         : 0;
 
     return Response.json({
-      timeline: points,
+      timeline: points.map((p) => ({
+        engagement: formatScore(p.engagement),
+        views: p.views,
+      })),
       topicStats,
       patterns,
       totals: {
