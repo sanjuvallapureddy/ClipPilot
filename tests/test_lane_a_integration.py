@@ -11,18 +11,22 @@ from conftest import FAKE as _fake
 
 from shared import keys
 from shared.schemas import DiscoveryItem, EngineStatus, Patterns, ProcessRequest
-from engine import pipeline, transcript
-from discovery_orchestrator import orchestrator, discovery
+from engine import openshorts_client, pipeline
+from discovery_orchestrator import orchestrator
 
 
-def _fake_segments(url):
-    return [(float(i * 5), f"line {i} about ai agents") for i in range(60)]
-
-
-def _fake_detect(windows, req, n):
-    return [{"start": w["start"], "end": w["end"], "quote": "q", "hook": f"H{i}",
-             "topic": "ai agents", "score": 0.8, "reason": "r"}
-            for i, w in enumerate(windows[:n])]
+def _fake_generate_clips(url, *, title="", topic="", on_progress=None, **kwargs):
+    if on_progress:
+        on_progress("fetching", "checking source video", 0.15)
+        on_progress("fetching", "OpenShorts downloading source video", 0.35)
+        on_progress("transcribing", "OpenShorts transcribing source", 0.45)
+        on_progress("analyzing", "OpenShorts detecting viral moments", 0.65)
+    return [
+        {"clip_url": f"http://localhost:8010/videos/test/clip_{i}.mp4",
+         "start": i * 30.0, "end": i * 30.0 + 24.0,
+         "quote": "q", "hook": f"H{i}", "score": 0.8}
+        for i in range(3)
+    ]
 
 
 class _Resp:
@@ -61,8 +65,8 @@ class _FakeClient:
 
 def test_run_once_end_to_end():
     orchestrator.httpx.Client = _FakeClient
-    transcript.fetch_segments = _fake_segments
-    pipeline._detect_moments = _fake_detect
+    openshorts_client.available = lambda: True
+    openshorts_client.generate_clips = _fake_generate_clips
 
     p = Patterns(winning_topics=["ai agents and autonomous software"],
                  ideal_length_min=25.0, ideal_length_max=35.0,
@@ -92,7 +96,10 @@ def test_run_once_end_to_end():
     assert len(clip_ids) >= 1
     sample = _fake.hgetall(keys.result_key(next(iter(clip_ids))))
     assert sample["post_id"] == "" and sample["post_status"] == "not_posted"
-    assert sample["render_status"] == "pending"
+    assert sample["render_status"] == "rendered"
+    assert sample["clip_url"].startswith("http://localhost:8010/videos/test/")
+    stages = [e[1]["stage"] for e in _fake.xrange(keys.JOBS_STREAM)]
+    assert stages.index("fetching") < stages.index("transcribing") < stages.index("analyzing")
 
     # dedupe: same video skipped on a second pass
     item = DiscoveryItem(youtube_url=job["episode_url"], title="dup", trend_score=0.9)

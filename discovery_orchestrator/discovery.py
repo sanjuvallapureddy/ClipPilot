@@ -106,8 +106,70 @@ def _parse_iso8601_duration(s: str) -> float:
 
 
 def _keep_episode(c: dict) -> bool:
-    """Drop channel-trailer / very short / zero-length entries; keep real episodes."""
-    return bool(c["title"]) and (c["duration"] == 0 or c["duration"] >= 300)
+    """Keep real candidates that are suitable for either direct clipping or chunking.
+
+    Lane C can now turn long podcasts into a bounded source segment before OpenShorts runs,
+    so discovery should not reject normal 1-2 hour podcasts. It should still reject shorts,
+    unknown-duration entries, and extremely long sources that are not reasonable to probe.
+    """
+    if not c["title"]:
+        return False
+    dur = c["duration"]
+    if dur == 0:
+        return False
+    min_s = float(os.getenv("DISCOVERY_MIN_DURATION_SEC", "180"))   # 3 min
+    max_s = float(os.getenv(
+        "DISCOVERY_MAX_SOURCE_DURATION_SEC",
+        os.getenv("DISCOVERY_MAX_DURATION_SEC", "10800"),
+    ))  # 3h: long podcasts are chunked by Lane C before OpenShorts
+    return min_s <= dur <= max_s
+
+
+def _probe_video_metadata(url: str) -> dict:
+    """Resolve a single YouTube URL to real metadata when search returns a flat result.
+
+    yt-dlp flat search often omits duration/view_count. We must resolve unknown-duration
+    hits before queueing, otherwise Lane C rejects long podcasts after users wait.
+    """
+    try:
+        import yt_dlp
+
+        opts = {"quiet": True, "no_warnings": True, "skip_download": True}
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+        return {
+            "duration": float((info or {}).get("duration") or 0),
+            "view_count": int((info or {}).get("view_count") or 0),
+            "like_count": int((info or {}).get("like_count") or 0),
+            "title": (info or {}).get("title") or "",
+            "podcast": (info or {}).get("channel") or (info or {}).get("uploader") or "",
+        }
+    except Exception as e:
+        coord("A", "error", f"yt-dlp metadata probe failed for {url}: {e}")
+        return {}
+
+
+def _resolve_unknown_durations(candidates: list[dict]) -> list[dict]:
+    """Fill missing durations for search candidates before filtering."""
+    out: list[dict] = []
+    for c in candidates:
+        dur = float(c.get("duration") or 0)
+        if dur == 0 and c.get("youtube_url"):
+            meta = _probe_video_metadata(c["youtube_url"])
+            if meta:
+                c = {
+                    **c,
+                    "duration": meta.get("duration") or c.get("duration") or 0,
+                    "view_count": meta.get("view_count") or c.get("view_count") or 0,
+                    "like_count": meta.get("like_count") or c.get("like_count") or 0,
+                    "title": c.get("title") or meta.get("title") or "",
+                    "podcast": c.get("podcast") or meta.get("podcast") or "",
+                }
+        if _keep_episode(c):
+            out.append(c)
+        else:
+            coord("A", "info", f"skip duration {round(float(c.get('duration') or 0) / 60, 1)}m: {c.get('title', '')[:80]}")
+    return out
 
 
 def _fetch_via_data_api(topic: str, max_results: int = 12) -> list[dict]:
@@ -187,7 +249,7 @@ def _fetch_via_ytdlp(topic: str, max_results: int = 12) -> list[dict]:
             })
     except Exception as e:  # real failure -> empty, never faked
         coord("A", "error", f"yt-dlp search failed: {e}")
-    return [c for c in out if _keep_episode(c)]
+    return _resolve_unknown_durations(out)
 
 
 def fetch_candidates(topic: str, max_results: int = 12) -> list[dict]:

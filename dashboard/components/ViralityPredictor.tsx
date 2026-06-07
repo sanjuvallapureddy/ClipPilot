@@ -30,9 +30,10 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useCopilotReadable } from "@copilotkit/react-core";
+import { useCopilotChatSuggestions, useChatContext } from "@copilotkit/react-ui";
 import { getClipPredictions, getBestPrediction } from "@/lib/virality-mock";
 import type { LucideIcon } from "lucide-react";
-import { SectionCard, Badge, GlowMetricCard, OdometerNumber } from "@/components/ui";
+import { SectionCard, Badge, GlowMetricCard, OdometerNumber, Button } from "@/components/ui";
 
 const CHART_TOOLTIP = {
   contentStyle: {
@@ -94,6 +95,27 @@ export default function ViralityPredictor() {
       })),
     },
   });
+
+  // Surface the clip/virality prompts as suggestion chips inside the sidebar chat itself.
+  useCopilotChatSuggestions({
+    available: "before-first-message",
+    suggestions: COPILOT_PROMPTS.map((p) => ({ title: p, message: p })),
+  });
+
+  // The sidebar is mounted in layout.tsx and renders the app inside its ChatContext,
+  // so we can open it programmatically from here.
+  const { setOpen } = useChatContext();
+
+  const askCopilot = () => {
+    setOpen(true);
+    // Focus the sidebar's chat textarea once it's visible.
+    requestAnimationFrame(() => {
+      const ta = document.querySelector<HTMLTextAreaElement>(
+        ".copilotKitSidebarContentWrapper textarea",
+      );
+      ta?.focus();
+    });
+  };
 
   const compareData = clips.map((c) => ({
     name: `#${c.rank}`,
@@ -361,23 +383,10 @@ export default function ViralityPredictor() {
         </AnimatePresence>
 
         <div className="border-t border-neutral-900 px-4 py-3">
-          <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-neutral-600">
-            Try asking the copilot
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {COPILOT_PROMPTS.map((p) => (
-              <span
-                key={p}
-                className="rounded-md border border-neutral-800 bg-black px-2 py-1 font-mono text-[10px] text-neutral-500"
-              >
-                {p}
-              </span>
-            ))}
-          </div>
-          <p className="mt-3 font-mono text-[10px] text-neutral-700">
-            Use the ClipPilot Copilot panel (bottom-right) — it already has this clip&apos;s
-            scores and can explain predictions in plain language.
-          </p>
+          <Button variant="ghost" onClick={askCopilot} type="button">
+            <MessageCircle size={13} className="text-violet-400" />
+            Ask the Copilot
+          </Button>
         </div>
       </div>
     </SectionCard>

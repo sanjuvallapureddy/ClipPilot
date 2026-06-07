@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useCopilotAction, useCopilotReadable } from "@copilotkit/react-core";
 import {
   Search,
@@ -26,9 +26,8 @@ import YouTubeConnect from "@/components/YouTubeConnect";
 import ManualUpload from "@/components/ManualUpload";
 import MockEditingStudio from "@/components/MockEditingStudio";
 import ViralityPredictor from "@/components/ViralityPredictor";
-import Sidebar, { NAV_ITEMS, SECTION_ITEMS } from "@/components/Sidebar";
+import Sidebar, { NAV_ITEMS } from "@/components/Sidebar";
 import Aurora from "@/components/Aurora";
-import ScrollProgress from "@/components/ScrollProgress";
 import {
   MagneticButton,
   Card,
@@ -71,42 +70,14 @@ export default function Page() {
   const [cyclesHist, setCyclesHist] = useState<number[]>([]);
   const [queueHist, setQueueHist] = useState<number[]>([]);
   const [activeSection, setActiveSection] = useState("overview");
-  const contentRef = useRef<HTMLDivElement>(null);
   const bump = useCallback(() => setRefreshKey((k) => k + 1), []);
 
-  // Scroll within the inner content panel (reliable regardless of CopilotKit's wrapper).
   const navigate = useCallback((id: string) => {
-    const el = document.getElementById(id);
-    const container = contentRef.current;
-    if (!el) return;
-    if (container) {
-      const top =
-        el.getBoundingClientRect().top -
-        container.getBoundingClientRect().top +
-        container.scrollTop -
-        56; // 56px = sticky header height
-      container.scrollTo({ top, behavior: "smooth" });
-    } else {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (id === "analytics") {
+      window.location.href = "/analytics";
+      return;
     }
-  }, []);
-
-  // Section spy — watch the same scroll container.
-  useEffect(() => {
-    const container = contentRef.current;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((e) => {
-          if (e.isIntersecting) setActiveSection(e.target.id || "overview");
-        });
-      },
-      { root: container ?? null, rootMargin: "-30% 0px -55% 0px", threshold: 0 },
-    );
-    SECTION_ITEMS.forEach(({ id }) => {
-      const el = document.getElementById(id);
-      if (el) obs.observe(el);
-    });
-    return () => obs.disconnect();
+    setActiveSection(id);
   }, []);
 
   const loadStatus = useCallback(async () => {
@@ -497,17 +468,17 @@ export default function Page() {
 
   return (
     <div className="flex min-h-screen bg-black">
-      <ScrollProgress containerRef={contentRef} />
       <CommandMenu
         running={!!running}
         onRunOnce={doRunOnce}
         onDiscover={doDiscover}
         onToggleAuto={doToggleAuto}
+        onNavigate={navigate}
       />
 
       <Sidebar active={activeSection} online={online} onNavigate={navigate} />
 
-      <div ref={contentRef} className="flex h-screen min-w-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-neutral-900 bg-black/50 px-6 backdrop-blur-md">
           <Aurora />
           <div className="flex min-w-0 flex-col leading-tight">
@@ -558,90 +529,107 @@ export default function Page() {
           </div>
         </header>
 
-        <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-6 py-6">
-          <section id="overview" className="grid scroll-mt-20 grid-cols-2 gap-3 lg:grid-cols-4">
-          <Reveal delay={0}>
-            <GlowMetricCard
-              title="Status"
-              variant="red"
-              dot
-              pulse={!!running}
-              value={
-                <span className={running ? "text-neutral-100" : "text-rose-400/90"}>
-                  {running ? "ON" : "OFF"}
-                </span>
-              }
-              description="autonomous loop"
-            />
-          </Reveal>
-          <Reveal delay={0.06}>
-            <GlowMetricCard
-              title="Cycles Run"
-              variant="blue"
-              icon={Repeat}
-              value={<OdometerNumber value={Number(status?.cycles ?? 0)} />}
-              description="total"
-              sparkline={cyclesHist}
-            />
-          </Reveal>
-          <Reveal delay={0.12}>
-            <GlowMetricCard
-              title="Queue Pending"
-              variant="cyan"
-              icon={ListVideo}
-              value={<OdometerNumber value={Number(status?.queue_pending ?? 0)} />}
-              description="candidates"
-              sparkline={queueHist}
-            />
-          </Reveal>
-          <Reveal delay={0.18}>
-            <GlowMetricCard
-              title="Current Topic"
-              variant="amber"
-              icon={Hash}
-              value={
-                <span
-                  className={`truncate text-base ${
-                    status?.topic ? "text-amber-400/90" : "text-neutral-100"
-                  }`}
-                >
-                  {status?.topic ?? "—"}
-                </span>
-              }
-            />
-          </Reveal>
-        </section>
+        <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 overflow-y-auto px-6 py-6">
+          {activeSection === "overview" && (
+            <>
+              <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <Reveal delay={0}>
+                  <GlowMetricCard
+                    title="Status"
+                    variant="red"
+                    dot
+                    pulse={!!running}
+                    value={
+                      <span className={running ? "text-neutral-100" : "text-rose-400/90"}>
+                        {running ? "ON" : "OFF"}
+                      </span>
+                    }
+                    description="autonomous loop"
+                  />
+                </Reveal>
+                <Reveal delay={0.06}>
+                  <GlowMetricCard
+                    title="Cycles Run"
+                    variant="blue"
+                    icon={Repeat}
+                    value={<OdometerNumber value={Number(status?.cycles ?? 0)} />}
+                    description="total"
+                    sparkline={cyclesHist}
+                  />
+                </Reveal>
+                <Reveal delay={0.12}>
+                  <GlowMetricCard
+                    title="Queue Pending"
+                    variant="cyan"
+                    icon={ListVideo}
+                    value={<OdometerNumber value={Number(status?.queue_pending ?? 0)} />}
+                    description="candidates"
+                    sparkline={queueHist}
+                  />
+                </Reveal>
+                <Reveal delay={0.18}>
+                  <GlowMetricCard
+                    title="Current Topic"
+                    variant="amber"
+                    icon={Hash}
+                    value={
+                      <span
+                        className={`truncate text-base ${
+                          status?.topic ? "text-amber-400/90" : "text-neutral-100"
+                        }`}
+                      >
+                        {status?.topic ?? "—"}
+                      </span>
+                    }
+                  />
+                </Reveal>
+              </section>
+              <Reveal>
+                <LivePipeline />
+              </Reveal>
+            </>
+          )}
 
-        <Reveal id="live-pipeline" className="scroll-mt-20">
-          <LivePipeline />
-        </Reveal>
+          {activeSection === "live-pipeline" && (
+            <Reveal>
+              <LivePipeline />
+            </Reveal>
+          )}
 
-        <Reveal id="editing-studio" className="scroll-mt-20">
-          <MockEditingStudio />
-        </Reveal>
+          {activeSection === "editing-studio" && (
+            <Reveal>
+              <MockEditingStudio />
+            </Reveal>
+          )}
 
-        <Reveal id="virality-predictor" className="scroll-mt-20">
-          <ViralityPredictor />
-        </Reveal>
+          {activeSection === "virality-predictor" && (
+            <Reveal>
+              <ViralityPredictor />
+            </Reveal>
+          )}
 
-        <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="flex flex-col gap-4">
-            <Reveal id="viral-moments" className="scroll-mt-20">
+          {activeSection === "viral-moments" && (
+            <Reveal>
               <ClipsGallery refreshKey={refreshKey} />
             </Reveal>
-            <Reveal id="analytics" className="scroll-mt-20">
+          )}
+
+          {activeSection === "analytics" && (
+            <Reveal>
               <Analytics refreshKey={refreshKey} />
             </Reveal>
-          </div>
-          <div className="flex flex-col gap-4">
-            <Reveal className="scroll-mt-20">
-              <ManualUpload />
-            </Reveal>
-            <Reveal id="discovered-queue" className="scroll-mt-20">
-              <DiscoveredQueue refreshKey={refreshKey} />
-            </Reveal>
-          </div>
-        </section>
+          )}
+
+          {activeSection === "discovered-queue" && (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+              <Reveal>
+                <ManualUpload />
+              </Reveal>
+              <Reveal>
+                <DiscoveredQueue refreshKey={refreshKey} />
+              </Reveal>
+            </div>
+          )}
         </main>
 
         <ActivityTicker />

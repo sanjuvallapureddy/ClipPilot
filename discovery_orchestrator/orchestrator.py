@@ -26,6 +26,7 @@ from shared.schemas import (
 )
 
 OPENSHORTS_URL = os.getenv("OPENSHORTS_URL", "http://localhost:8001")
+ENGINE_POLL_TIMEOUT_SECONDS = int(os.getenv("ENGINE_POLL_TIMEOUT_SECONDS", "900"))
 
 
 def _video_id(url: str) -> str:
@@ -119,10 +120,12 @@ def process_item(item: DiscoveryItem, patterns: Patterns | None = None) -> str |
     return job_id
 
 
-def _poll_engine(job: Job, engine_job_id: str, max_polls: int = 120) -> None:
+def _poll_engine(job: Job, engine_job_id: str,
+                 timeout_seconds: int = ENGINE_POLL_TIMEOUT_SECONDS) -> None:
     r = get_client()
+    deadline = time.time() + timeout_seconds
     with httpx.Client(timeout=15) as client:
-        for _ in range(max_polls):
+        while time.time() < deadline:
             cur = read_job(job.job_id, r)
             if cur and cur.stage in ("done", "failed"):
                 return
@@ -140,7 +143,17 @@ def _poll_engine(job: Job, engine_job_id: str, max_polls: int = 120) -> None:
                                 error=st.get("error", ""), r=r)
                 return
             time.sleep(1)
-    coord("A", "error", f"poll timeout for {job.job_id}")
+    cur = read_job(job.job_id, r) or job
+    if cur.stage not in ("done", "failed"):
+        advance_job(
+            cur,
+            "failed",
+            status="error",
+            error=f"engine job {engine_job_id} exceeded {timeout_seconds}s",
+            message=f"engine timeout after {timeout_seconds}s",
+            r=r,
+        )
+    coord("A", "error", f"poll timeout for {job.job_id} after {timeout_seconds}s")
 
 
 def run_once(topic: str = "tech") -> dict:

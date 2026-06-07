@@ -22,8 +22,8 @@ from shared import keys
 from shared.redis_client import advance_job, coord, get_client, read_job
 from shared.schemas import ClipResult, EngineStatus, ProcessRequest
 
-from . import download, observability, publish, transcript
-from .scoring import FACTORS
+from . import observability, openshorts_client, publish
+from .scoring import FACTORS  # noqa: F401  (kept for any future scoring use)
 
 _ENGINE_JOBS: dict[str, EngineStatus] = {}
 ENGINE_JOB_PREFIX = "engine:job:"
@@ -93,74 +93,72 @@ async def _run(engine_job_id: str, req: ProcessRequest) -> None:
 
 
 async def _run_real(engine_job_id: str, req: ProcessRequest) -> None:
-    cfg = req.config
-
-    # 1. fetch: download the REAL source video (ingest for OpenShorts + local Whisper),
-    # then pull the real transcript. Download failure is non-fatal to moment detection
-    # (captions may still exist) but is logged loudly.
-    _set(engine_job_id, req, "fetching", 0.1, message="downloading source video")
-    video_path = await asyncio.to_thread(download.download, req.youtube_url)
-    if not video_path:
-        coord("C", "info", "no local video; continuing with captions if available")
-
-    _set(engine_job_id, req, "fetching", 0.2, message="fetching transcript")
-    segments = await asyncio.to_thread(
-        transcript.fetch_segments, req.youtube_url, video_path
-    )
-    if not segments:
+    """Hand the YouTube link straight to OpenShorts. OpenShorts does EVERYTHING — download,
+    transcription, viral-moment detection, cutting, 9:16 reframe, captions. ClipPilot does
+    NOT transcribe or detect moments itself (that double work caused the endless
+    "transcribing/analyzing"). We submit the URL, wait for the rendered clips, and write them.
+    """
+    if not openshorts_client.available():
         _set(engine_job_id, req, "failed", 1.0, status="error",
-             error="no transcript available (no captions; Whisper needs audio + key)",
-             message="no transcript available")
+             error="OPENAI_API_KEY required (OpenShorts uses it to detect + clip)",
+             message="no OpenAI key configured")
         return
 
-    _set(engine_job_id, req, "transcribing", 0.4,
-         message=f"transcript: {len(segments)} lines")
-    windows = transcript.make_windows(segments, target_len=(cfg.min_length + cfg.max_length) / 2)
-
-    # 2. GPT scores the real windows and returns the top real moments
-    _set(engine_job_id, req, "analyzing", 0.7, message=f"scoring {len(windows)} moments")
-    moments = await asyncio.to_thread(_detect_moments, windows, req, cfg.num_clips)
-    if not moments:
+    try:
+        os_clips = await asyncio.to_thread(
+            openshorts_client.generate_clips, req.youtube_url,
+            title=req.title, topic=req.topic,
+            on_progress=lambda stage, message, progress: _set(
+                engine_job_id, req, stage, progress, message=message
+            ),
+        )
+    except openshorts_client.OpenShortsError as e:
         _set(engine_job_id, req, "failed", 1.0, status="error",
-             error="moment detection produced nothing (OPENAI_API_KEY required)",
-             message="moment detection failed")
+             error=str(e), message=f"OpenShorts failed: {e}")
+        return
+    if not os_clips:
+        _set(engine_job_id, req, "failed", 1.0, status="error",
+             error="OpenShorts returned no clips (it failed or timed out)",
+             message="OpenShorts produced no clips")
         return
 
-    # 3. write real results (render/post pending — never faked)
+    # Write the REAL rendered clips OpenShorts produced.
     r = get_client()
     clip_ids: list[str] = []
-    for m in moments:
+    for oc in os_clips:
         clip_id = uuid.uuid4().hex[:10]
+        start = float(oc.get("start") or 0.0)
+        end = float(oc.get("end") or 0.0)
+        hook = oc.get("hook") or "Viral moment"
         res = ClipResult(
             clip_id=clip_id,
             job_id=req.clippilot_job_id or engine_job_id,
             source_url=req.youtube_url,
-            title=(req.title or "Episode") + f" — {m['hook'][:50]}",
-            topic=req.topic or m.get("topic", ""),
-            hook=m["hook"],
-            quote=m.get("quote", ""),
-            reason=m.get("reason", ""),
-            start_seconds=float(m["start"]),
-            end_seconds=float(m["end"]),
-            length_seconds=round(float(m["end"]) - float(m["start"]), 1),
-            engagement_score=round(float(m["score"]), 4),
-            render_status="pending",
+            clip_url=oc.get("clip_url", ""),
+            title=(req.title or "Clip") + (f" — {hook[:50]}" if hook else ""),
+            topic=req.topic,
+            hook=hook,
+            quote=oc.get("quote", ""),
+            start_seconds=start,
+            end_seconds=end,
+            length_seconds=round(end - start, 1) if end > start else 0.0,
+            engagement_score=round(float(oc.get("score", 0.0)) or 0.9, 4),
+            render_status="rendered",
             post_status="not_posted",
         )
         r.hset(keys.result_key(clip_id), mapping=res.to_redis())
         r.sadd(keys.RESULTS_SET, clip_id)
         clip_ids.append(clip_id)
-        coord("C", "info", f"moment {clip_id} score={res.engagement_score} [{res.start_seconds}-{res.end_seconds}s]")
-        # Honest posting handoff: a guaranteed no-op today (render_status="pending"
-        # until OpenShorts renders a real vertical short + file). Never fakes a post.
-        posted = publish.publish_clip(res, None)
+        coord("C", "info", f"OpenShorts clip {clip_id} -> {res.clip_url}")
+        posted = publish.publish_clip(res, res.clip_url)
         if posted.post_status != "not_posted":
             r.hset(keys.result_key(clip_id), mapping=posted.to_redis())
 
     st = get_status(engine_job_id)
     st.clips = clip_ids
-    _set(engine_job_id, req, "done", 1.0, message=f"{len(clip_ids)} real moments detected")
-    coord("C", "milestone", f"{engine_job_id} done: {len(clip_ids)} real viral moments")
+    _set(engine_job_id, req, "done", 1.0,
+         message=f"{len(clip_ids)} clips rendered by OpenShorts")
+    coord("C", "milestone", f"{engine_job_id} done: {len(clip_ids)} OpenShorts clips")
 
 
 @observability.op("detect_moments")

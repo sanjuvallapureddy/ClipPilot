@@ -10,16 +10,20 @@ import os
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from shared.redis_client import coord
 from shared.schemas import EngineStatus, ProcessRequest, ProcessResponse
 
+from .download import MEDIA_DIR
 from . import observability, pipeline
 
 app = FastAPI(title="ClipPilot Engine", version="0.2.0")
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )
+MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/media", StaticFiles(directory=str(MEDIA_DIR)), name="media")
 
 
 @app.on_event("startup")

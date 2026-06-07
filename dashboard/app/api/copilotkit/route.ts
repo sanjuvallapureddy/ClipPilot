@@ -13,9 +13,15 @@ export const runtime = "nodejs";
 // Placeholder key keeps construction (and the build) from throwing when unset;
 // real LLM calls require a valid OPENAI_API_KEY at runtime.
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "sk-missing" });
+
+// The copilot CHAT runs on a FAST model, deliberately decoupled from OPENAI_MODEL
+// (the heavy reasoning model the Python engine uses for moment detection). Heavy
+// reasoning models spend a long time on hidden reasoning before streaming any
+// tokens, which made even trivial chat/AG-UI turns take minutes. COPILOT_MODEL lets
+// us pin a low-latency chat model here without affecting backend moment detection.
 const serviceAdapter = new OpenAIAdapter({
   openai,
-  model: process.env.OPENAI_MODEL || "gpt-5.5",
+  model: process.env.COPILOT_MODEL || "gpt-4o-mini",
 });
 
 async function laneA(path: string, method = "POST", payload: unknown = {}) {
