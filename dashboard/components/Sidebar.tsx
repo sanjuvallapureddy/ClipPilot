@@ -106,8 +106,8 @@ export default function Sidebar({ online }: { online: boolean | null }) {
           )}
         </button>
 
-        {/* Nav */}
-        <nav className="flex flex-1 flex-col gap-1 p-3">
+        {/* Nav — inset left accent (no floating bar; stays inside the rounded hit target) */}
+        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3">
           {NAV_ITEMS.map((item) => {
             const isActive = isItemActive(item);
             const Icon = item.icon;
@@ -116,19 +116,14 @@ export default function Sidebar({ online }: { online: boolean | null }) {
                 key={item.id}
                 onClick={() => handleNavigate(item)}
                 onMouseEnter={() => item.route && router.prefetch(item.route)}
-                className={`group relative flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors ${
+                className={`group flex w-full items-center gap-3 rounded-md py-2 text-sm transition-colors ${
+                  collapsed ? "justify-center px-2.5" : "pl-3 pr-2.5"
+                } ${
                   isActive
-                    ? "bg-neutral-900/70 text-neutral-100"
-                    : "text-neutral-500 hover:bg-neutral-950 hover:text-neutral-300"
-                } ${collapsed ? "justify-center" : ""}`}
+                    ? "border-l-2 border-neutral-100 bg-neutral-900/80 text-neutral-100"
+                    : "border-l-2 border-transparent text-neutral-500 hover:bg-neutral-950 hover:text-neutral-300"
+                }`}
               >
-                {isActive && (
-                  <motion.span
-                    layoutId="nav-active"
-                    className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-neutral-100"
-                    transition={{ type: "spring", stiffness: 400, damping: 32 }}
-                  />
-                )}
                 <Icon
                   size={16}
                   className={`shrink-0 transition-colors ${
