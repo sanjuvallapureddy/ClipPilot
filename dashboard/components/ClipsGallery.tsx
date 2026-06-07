@@ -26,6 +26,10 @@ export default function ClipsGallery({ refreshKey }: { refreshKey: number }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pulsing, setPulsing] = useState<Set<string>>(new Set());
+  // Clips whose rendered file 404s (OpenShorts cleaned up its output) — degrade gracefully.
+  const [unavailable, setUnavailable] = useState<Set<string>>(new Set());
+  const markUnavailable = (id: string) =>
+    setUnavailable((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
   const postedSeen = useRef<Set<string> | null>(null);
 
   // Pulse a clip's card once, the moment it transitions to "posted".
@@ -148,13 +152,32 @@ export default function ClipsGallery({ refreshKey }: { refreshKey: number }) {
                 pulsing.has(c.clip_id) ? "success-pulse" : ""
               }`}
             >
-              <div className="flex items-baseline gap-3">
-                <span className="font-mono text-lg font-semibold tabular-nums text-emerald-400">
-                  {c.engagement_score.toFixed(2)}
-                </span>
-                <span className="text-sm font-medium leading-snug text-neutral-100">
-                  {c.hook}
-                </span>
+              <div className="flex gap-3">
+                {rendered && c.clip_url && !unavailable.has(c.clip_id) && (
+                  <video
+                    src={c.clip_url}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    controls
+                    onClick={(e) => e.stopPropagation()}
+                    onError={() => markUnavailable(c.clip_id)}
+                    className="aspect-[9/16] w-20 shrink-0 rounded-md border border-neutral-800 bg-black object-cover"
+                  />
+                )}
+                {rendered && unavailable.has(c.clip_id) && (
+                  <div className="flex aspect-[9/16] w-20 shrink-0 items-center justify-center rounded-md border border-dashed border-neutral-800 bg-black/40 px-1 text-center font-mono text-[8px] leading-tight text-neutral-600">
+                    file expired
+                  </div>
+                )}
+                <div className="flex items-baseline gap-3">
+                  <span className="font-mono text-lg font-semibold tabular-nums text-emerald-400">
+                    {c.engagement_score.toFixed(2)}
+                  </span>
+                  <span className="text-sm font-medium leading-snug text-neutral-100">
+                    {c.hook}
+                  </span>
+                </div>
               </div>
 
               {c.quote && (

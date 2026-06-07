@@ -10,6 +10,7 @@ import {
   ExternalLink,
   Quote,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { ClipResult } from "@/lib/types";
 import { Badge, YouTubeGlyph } from "@/components/ui";
 
@@ -34,6 +35,8 @@ export default function ClipDrawer({
 }) {
   const posted = clip?.post_status === "posted";
   const rendered = clip?.render_status === "rendered";
+  const [videoFailed, setVideoFailed] = useState(false);
+  useEffect(() => setVideoFailed(false), [clip?.clip_id]);
 
   return (
     <AnimatePresence>
@@ -72,6 +75,26 @@ export default function ClipDrawer({
             </div>
 
             <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
+              {rendered && clip.clip_url && !videoFailed ? (
+                <div className="overflow-hidden rounded-lg border border-neutral-800 bg-black">
+                  <video
+                    key={clip.clip_url}
+                    src={clip.clip_url}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    onError={() => setVideoFailed(true)}
+                    className="mx-auto max-h-[55vh] w-auto"
+                  />
+                </div>
+              ) : (
+                <div className="flex aspect-[9/16] max-h-[40vh] items-center justify-center rounded-lg border border-dashed border-neutral-800 bg-black/40 px-4 text-center font-mono text-[11px] leading-relaxed text-neutral-600">
+                  {rendered && videoFailed
+                    ? "this clip's file is no longer on the OpenShorts server (cleaned up) — re-run to regenerate"
+                    : "render pending — OpenShorts hasn't produced this clip yet"}
+                </div>
+              )}
+
               <h3 className="text-lg font-semibold leading-snug tracking-tight text-neutral-100">
                 {clip.hook}
               </h3>
