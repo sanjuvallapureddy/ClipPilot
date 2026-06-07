@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Clapperboard,
@@ -24,6 +25,8 @@ export interface NavItem {
   label: string;
   icon: LucideIcon;
   accent: string;
+  /** When set, the item navigates to this route instead of scrolling to a section. */
+  route?: string;
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -32,23 +35,43 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "editing-studio", label: "Editing", icon: Wand2, accent: "text-fuchsia-400" },
   { id: "virality-predictor", label: "Virality", icon: TrendingUp, accent: "text-rose-400" },
   { id: "viral-moments", label: "Clips", icon: Flame, accent: "text-amber-400" },
-  { id: "analytics", label: "Analytics", icon: BarChart3, accent: "text-blue-400" },
   { id: "discovered-queue", label: "Discovery", icon: Compass, accent: "text-cyan-400" },
+  { id: "analytics", label: "Analytics", icon: BarChart3, accent: "text-blue-400", route: "/analytics" },
 ];
+
+/** Section-scroll items only (used for in-page scroll-spy on the home dashboard). */
+export const SECTION_ITEMS = NAV_ITEMS.filter((n) => !n.route);
 
 export default function Sidebar({
   active,
   online,
   onNavigate,
 }: {
-  active: string;
+  active?: string;
   online: boolean | null;
-  onNavigate: (id: string) => void;
+  onNavigate?: (id: string) => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
 
   const width = collapsed ? "w-16" : "w-56";
+
+  const handleNavigate = (item: NavItem) => {
+    if (item.route) {
+      router.push(item.route);
+      return;
+    }
+    // Section item: scroll in-place on home, otherwise route home to the anchor.
+    if (pathname === "/" && onNavigate) onNavigate(item.id);
+    else router.push(`/#${item.id}`);
+  };
+
+  const isItemActive = (item: NavItem) => {
+    if (item.route) return pathname === item.route || pathname.startsWith(`${item.route}/`);
+    return pathname === "/" && active === item.id;
+  };
 
   return (
     <>
@@ -58,7 +81,10 @@ export default function Sidebar({
         className={`sticky top-0 z-40 flex h-screen ${width} shrink-0 flex-col border-r border-neutral-900 bg-black/60 backdrop-blur-md`}
       >
         {/* Brand */}
-        <div className="flex h-14 items-center gap-2.5 border-b border-neutral-900 px-4">
+        <button
+          onClick={() => router.push("/")}
+          className="flex h-14 items-center gap-2.5 border-b border-neutral-900 px-4 text-left"
+        >
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-neutral-800 bg-neutral-950">
             <Clapperboard size={16} className="text-neutral-100" />
           </div>
@@ -67,17 +93,17 @@ export default function Sidebar({
               ClipPilot
             </span>
           )}
-        </div>
+        </button>
 
         {/* Nav */}
         <nav className="flex flex-1 flex-col gap-1 p-3">
           {NAV_ITEMS.map((item) => {
-            const isActive = active === item.id;
+            const isActive = isItemActive(item);
             const Icon = item.icon;
             const button = (
               <button
                 key={item.id}
-                onClick={() => onNavigate(item.id)}
+                onClick={() => handleNavigate(item)}
                 className={`group relative flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors ${
                   isActive
                     ? "bg-neutral-900/70 text-neutral-100"
@@ -113,7 +139,14 @@ export default function Sidebar({
         {/* Footer: health + about + collapse */}
         <div className="flex flex-col gap-1 border-t border-neutral-900 p-3">
           <div
-            className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 ${
+            title={
+              online === false
+                ? "Orchestrator down: the dashboard can't reach Lane A (discovery orchestrator) at http://localhost:8000. Start it with: uvicorn discovery_orchestrator.app:app --port 8000"
+                : online
+                  ? "Systems online: the dashboard is connected to Lane A (the discovery orchestrator)."
+                  : "Connecting to the orchestrator…"
+            }
+            className={`flex cursor-help items-center gap-2 rounded-md px-2.5 py-1.5 ${
               collapsed ? "justify-center" : ""
             }`}
           >

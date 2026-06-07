@@ -22,7 +22,7 @@ from shared import keys
 from shared.redis_client import advance_job, coord, get_client, read_job
 from shared.schemas import ClipResult, EngineStatus, ProcessRequest
 
-from . import download, publish, transcript
+from . import download, observability, publish, transcript
 from .scoring import FACTORS
 
 _ENGINE_JOBS: dict[str, EngineStatus] = {}
@@ -163,8 +163,13 @@ async def _run_real(engine_job_id: str, req: ProcessRequest) -> None:
     coord("C", "milestone", f"{engine_job_id} done: {len(clip_ids)} real viral moments")
 
 
+@observability.op("detect_moments")
 def _detect_moments(windows: list[dict], req: ProcessRequest, n: int) -> list[dict]:
-    """GPT picks the top N real viral moments from the real candidate windows."""
+    """GPT picks the top N real viral moments from the real candidate windows.
+
+    Wrapped as a Weave op so each real GPT virality pass (inputs, output moments, latency,
+    token usage) is captured as an LLM trace in Weights & Biases when tracing is enabled.
+    """
     if not os.getenv("OPENAI_API_KEY") or not windows:
         return []
     from openai import OpenAI

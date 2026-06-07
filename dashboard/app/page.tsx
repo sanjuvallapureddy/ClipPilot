@@ -26,7 +26,7 @@ import YouTubeConnect from "@/components/YouTubeConnect";
 import ManualUpload from "@/components/ManualUpload";
 import MockEditingStudio from "@/components/MockEditingStudio";
 import ViralityPredictor from "@/components/ViralityPredictor";
-import Sidebar, { NAV_ITEMS } from "@/components/Sidebar";
+import Sidebar, { NAV_ITEMS, SECTION_ITEMS } from "@/components/Sidebar";
 import Aurora from "@/components/Aurora";
 import ScrollProgress from "@/components/ScrollProgress";
 import {
@@ -102,7 +102,7 @@ export default function Page() {
       },
       { root: container ?? null, rootMargin: "-30% 0px -55% 0px", threshold: 0 },
     );
-    NAV_ITEMS.forEach(({ id }) => {
+    SECTION_ITEMS.forEach(({ id }) => {
       const el = document.getElementById(id);
       if (el) obs.observe(el);
     });
@@ -138,9 +138,22 @@ export default function Page() {
 
   const running = status?.running;
 
+  // Preflight: every control action proxies to Lane A (the discovery orchestrator on
+  // :8000). If it's offline, fail fast with an actionable message instead of a vague error.
+  const ensureOrchestrator = useCallback(() => {
+    if (online === false) {
+      toast(
+        "Orchestrator offline — start Lane A:  uvicorn discovery_orchestrator.app:app --port 8000",
+        "error",
+      );
+      return false;
+    }
+    return true;
+  }, [online]);
+
   // --- Control actions with toast feedback ---
   const doDiscover = useCallback(async () => {
-    if (busy) return;
+    if (busy || !ensureOrchestrator()) return;
     setBusy(true);
     const id = toast("Discovering trending podcasts…", "loading");
     try {
@@ -157,10 +170,10 @@ export default function Page() {
       setBusy(false);
       bump();
     }
-  }, [busy, status?.topic, bump]);
+  }, [busy, status?.topic, bump, ensureOrchestrator]);
 
   const doResearch = useCallback(async () => {
-    if (busy) return;
+    if (busy || !ensureOrchestrator()) return;
     setBusy(true);
     const id = toast("Researching this week's trending episodes…", "loading");
     try {
@@ -177,10 +190,10 @@ export default function Page() {
       setBusy(false);
       bump();
     }
-  }, [busy, status?.topic, bump]);
+  }, [busy, status?.topic, bump, ensureOrchestrator]);
 
   const doRunOnce = useCallback(async () => {
-    if (busy) return;
+    if (busy || !ensureOrchestrator()) return;
     setBusy(true);
     const id = toast("Running one autonomous cycle…", "loading");
     try {
@@ -195,9 +208,10 @@ export default function Page() {
       setBusy(false);
       bump();
     }
-  }, [busy, bump]);
+  }, [busy, bump, ensureOrchestrator]);
 
   const doToggleAuto = useCallback(async () => {
+    if (!ensureOrchestrator()) return;
     const turningOn = !running;
     const { ok } = await callControl(turningOn ? "start" : "stop", {
       topic: status?.topic || "tech",
@@ -205,7 +219,7 @@ export default function Page() {
     if (ok) toast(turningOn ? "Autonomous loop started" : "Autonomous loop stopped", "success");
     else toast("Could not reach the orchestrator", "error");
     loadStatus();
-  }, [running, status?.topic, loadStatus]);
+  }, [running, status?.topic, loadStatus, ensureOrchestrator]);
 
   // --- Global single-key shortcuts (ignored while typing) ---
   useEffect(() => {
