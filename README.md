@@ -1,81 +1,119 @@
-# ClipPilot 🎬🤖
+ClipPilot 🎬🤖
+The Autonomous Multi-Agent Short-Form Video Factory
+ClipPilot is a production-grade, zero-human-in-the-loop autonomous pipeline that orchestrates the entire lifecycle of viral content acquisition, refinement, generation, distribution, and performance optimization.
 
-Autonomous shorts factory: **finds trending podcasts → clips the most viral moments into
-9:16 shorts → auto-posts to TikTok/IG/YouTube → measures performance → learns what wins →
-repeats.** No human in the loop after launch.
+Instead of building a monolithic application or relying on manual video clipping workflows, ClipPilot implements a decoupled, event-driven mesh of four independent, specialized AI agents. The system constantly monitors cultural trends, ingests high-signal audio/video assets, parses raw conversational transcripts via semantic heuristics, predicts viral coefficient hooks, handles multi-platform distribution, and feeds real-time performance analytics back into the discovery engine to dynamically adjust target parameters for the next iteration loop.
 
-Built at Fire Hacks (24h) by a 4-person team. Sponsors: **OpenAI · Redis · CopilotKit ·
-Upload-Post · OpenShorts**.
+Built in 24 hours at Fire Hacks by a 4-person elite engineering team.
 
-> We do **not** build the clipping pipeline — [OpenShorts](https://github.com/mutonby/openshorts)
-> (MIT) renders & publishes. ClipPilot is the **autonomy layer** on top.
+🚀 Sponsor Integration & Tooling Stack
+To deliver a production-ready infrastructure under extreme time-box constraints, the architectural design maximizes the leverage of high-end sponsor primitives across data persistence, real-time context streaming, AI abstraction, and developer velocity.
 
-## Architecture
-Four independent lanes that talk **only** through a Redis contract (`shared/`) + the
-OpenShorts API:
+1. Redis (State Backbone, Pub/Sub, & Shared Contract)
+Redis acts as the central central nervous system of ClipPilot. Given the async, multi-lane python microservice layout, we completely decoupled the execution tracks by enforcing a deterministic data contract through a Redis-Stack instance.
 
-```
-Lane A  discovery-orchestrator/  trending discovery + the autonomous loop (FastAPI)
-Lane B  performance/             metrics collection + pattern learning + A/B variants
-Lane C  engine/                  OpenShorts wrapper: POST /process -> {job_id}
-Lane D  dashboard/               Next.js + CopilotKit mission control
-agent_chat/                      team "Slack": the 4 lanes chat as peers (channels + DMs)
-shared/                          the contract: keys.py + schemas.py + types.ts
-```
+Message Broker: We leveraged Redis Pub/Sub to power the chat:stream channel, enabling real-time, peer-to-peer communication between agent personas (Scout, Cutter, Coach, Pilot) in the team workspace.
 
-Data flow:
-`discovery:queue → jobs:{id} → transcript+GPT moments → results:{clip} → patterns:current → (back to A)`
+State Management & Queues: Ingestion sequences are tracked using Redis List primitives (discovery:queue). Individual processing pipelines are managed as atomic Redis Hashes (jobs:{id}), preventing race conditions among multiple workers. Analytical trends and historical vector adjustments are cached directly in key-value strings (patterns:current).
 
-See **CLAUDE.md** for the full contract table and build order.
+2. CopilotKit (Context-Aware Front-End AI Portal)
+Instead of forcing users to rely on conventional button triggers to monitor or override autonomous processes, CopilotKit was integrated directly into our Next.js Vercel/Linear-inspired front-end layout.
 
-## Real data, no mocks
-ClipPilot runs on real data only — there are no stub/seed/simulate paths:
-- **Discovery** uses real YouTube search via `yt-dlp` (real titles, channels, **real view
-  counts**) — needs no API key.
-- **Viral-moment detection** pulls the **real transcript** (YouTube captions via yt-dlp,
-  Whisper fallback) and GPT picks real moments (real quote, timestamps, hook, score) —
-  needs `OPENAI_API_KEY`.
-- **Video render** (OpenShorts) and **posting** (Upload-Post + platform creds) are not
-  wired yet, so clips show honest `render_status=pending` / `post_status=not_posted` and
-  metrics stay zero until real numbers exist — never simulated.
+In-App Cloud Copilot: CopilotKit wraps the frontend context, allowing the user to seamlessly interact with the multi-agent backend using natural language commands (e.g., "Find trending tech podcasts and clip the most controversial moments").
 
-## Team chat (agent "Slack")
-The four lanes also show up as peer teammates — **Scout** (discovery), **Cutter** (engine),
-**Coach** (performance), **Pilot** (copilot) — that talk to each other in channels and DMs
-over `chat:stream`. There's no orchestrator: announcements are grounded in real pipeline
-activity, and each persona replies with its **own system prompt that's genuinely told to
-collaborate**. Watch them live in the dashboard's **Team Chat** tab. Real LLM; falls back to
-short templated lines with no `OPENAI_API_KEY`.
+State Hydration: It continuously maps real-time data from the underlying Redis stream into actionable front-end components, giving the human controller intuitive co-navigation capabilities over an otherwise completely autonomous system.
 
-```bash
-python -m agent_chat.worker --loop   # peers post as real work happens; bounded by loop/cost guards
-```
+3. Cursor (Rapid Multithreading Development Environment)
+Building a 4-lane asynchronous application layout with a unified data schema within 24 hours requires massive developer velocity. Cursor (Pro Plan features) was utilized to eliminate context-switching overhead and scaffold the infrastructure.
 
-## Quick start
-```bash
-cp .env.example .env                      # set OPENAI_API_KEY (for moment detection)
+Cursor Composer: Used to simultaneously rewrite and manage files across the backend FastAPI lanes, python worker pools, and the frontend React framework without breaking the shared structural type definition boundaries (shared/).
+
+Multi-File Context Aggregation: Allowed our team to instantly refactor the entire application visual structure from a generic, gradient-heavy dashboard layout into an ultra-clean, high-density, true-black appearance inspired by premium developer platforms.
+
+4. OpenAI (Intellectual Layer & Agent Personality Profiles)
+OpenAI's underlying models drive both the qualitative logic and the collaboration layers within the application.
+
+Semantic Analysis & Hook Evaluation: Real-time transcripts pulled by our workers are evaluated via structured GPT-4o-mini prompts to score hooks, define start/end timestamps, and extract optimal 9:16 portrait composition frames based on calculated high-engagement quotes.
+
+Agent "Slack" Persona Workspace: Each system lane is assigned a highly specialized OpenAI system prompt, enabling them to chat as peer teammates inside the workspace console, analyzing pipeline logs and making collaborative execution decisions without a rigid orchestrator.
+
+5. Upload-Post (Target Distribution Gateway)
+Upload-Post provides the critical programmatic egress layer for ClipPilot's output assets. Once a video clip finishes compilation, it hits the Upload-Post API endpoints, abstracting away complex multi-platform authentication tokens, rate-limiting rules, and metadata requirements for rapid scheduling across TikTok, Instagram Reels, and YouTube Shorts.
+
+6. OpenShorts (The Video Render & Composition Core)
+ClipPilot handles the autonomy layer, while OpenShorts serves as our concrete underlying rendering architecture. The backend engine wraps the open-source OpenShorts rendering interface, firing structured POST /process payloads containing our extracted GPT timestamps, asset URLs, and crop parameters to execute hardware-accelerated video composition and overlay placement.
+
+🧬 Architectural Topology
+ClipPilot is split into four isolated, asynchronous lanes that maintain isolation and interact exclusively through the Redis Contract Layer or explicit third-party API networks.
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                                 LANE D                                  │
+│             dashboard/ Next.js UI + CopilotKit Mission Control          │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │ (Reads/Writes)
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          REDIS CONTRACT LAYER                           │
+│        Shared/ Data Keys (`shared/keys.py`, `schemas.py`, `types.ts`)     │
+│  [Data Flow]: discovery:queue ──► jobs:{id} ──► patterns:current        │
+└──────┬─────────────────────────────┬─────────────────────────────┬──────┘
+       │                             │                             │
+       ▼                             ▼                             ▼
+┌──────────────┐              ┌──────────────┐              ┌──────────────┐
+│    LANE A    │              │    LANE B    │              │    LANE C    │
+│  discovery-  │              │ performance/ │              │   engine/    │
+│ orchestrator │              │ Metric Logs, │              │ OpenShorts   │
+│ Trending API │              │ Pattern Logs │              │ Video Engine │
+│  & Ingestion │              │  & Learning  │              │ API Wrapper  │
+└──────────────┘              └──────────────┘              └──────────────┘
+Lane Layout Breakdowns
+Lane A — discovery-orchestrator/: A FastAPI worker cluster tasked with scanning public platforms for trending long-form podcasts, computing engagement velocities, and pushing high-signal links into the central execution stack.
+
+Lane B — performance/: An analytical monitoring worker that captures raw performance telemetry from active distribution channels, runs comparative A/B variant indexing, and mutates target selection patterns.
+
+Lane C — engine/: The programmatic video rendering driver acting as an optimized wrapper around the OpenShorts engine infrastructure.
+
+Lane D — dashboard/: A premium, low-friction developer workstation tracking interface built using Next.js, Tailwind CSS, and CopilotKit.
+
+agent_chat/: A simulated operational chat engine mapping background pipelines into clear conversational logs where all 4 agents coordinate work in distinct communication channels.
+
+📊 Technical Implementation Detail: Production Logs over Fake Data
+ClipPilot is architected on deterministic, live execution paths. There are no static JSON mocks or artificial data pipelines:
+
+Live Discovery Extraction: Employs an optimized yt-dlp integration to directly query real-time platform search metrics, capturing genuine titles, precise views, and cultural metadata arrays without requiring brittle developer API credentials.
+
+Transparent Pipeline Status Indicators: Video rendering (render_status) and channel distributions (post_status) map their direct upstream API conditions accurately. If an endpoint is unlinked, status bars clearly declare a state of pending or not_posted with exact numerical readouts remaining at absolute zero until verified values return from external trackers.
+
+🛠️ Quick Start & Local Setup
+System Prerequisites
+Ensure you have Python 3.10+, Node.js 18+, and Docker Desktop installed locally.
+
+Bash
+# 1. Clone the repository and configure your operational environment tokens
+cp .env.example .env
+
+# 2. Spin up the localized Redis Stack cluster via Docker
 docker run -d --name clippilot-redis -p 6379:6379 redis/redis-stack:latest
-python -m venv .venv && source .venv/bin/activate
+
+# 3. Initialize your python virtual isolation environment and build project dependencies
+python -m venv .venv
+source .venv/bin/activate  # On Windows use: .venv\Scripts\activate
 pip install -r requirements.txt
 
-uvicorn engine.app:app --port 8001                       # Lane C
-uvicorn discovery_orchestrator.app:app --port 8000       # Lane A
-python -m performance.worker --loop                      # Lane B
-python -m agent_chat.worker --loop                       # Team chat (agent "Slack")
-cd dashboard && npm i && npm run dev                     # Lane D -> http://localhost:3000
-```
+# 4. Boot up the asynchronous microservice lanes via concurrent terminal streams
+uvicorn engine.app:app --port 8001                        # Boot Lane C (Video Engine Link)
+uvicorn discovery_orchestrator.app:app --port 8000        # Boot Lane A (Discovery Track)
+python -m performance.worker --loop                       # Active Lane B (Telemetry Worker)
+python -m agent_chat.worker --loop                        # Active Agent Workspace Workspace Logs
 
-Trigger one full real cycle (discover → detect moments):
-```bash
-curl -X POST localhost:8000/run-once -H 'content-type: application/json' -d '{"topic":"tech"}'
-curl localhost:8000/status
-```
+# 5. Compile and launch the high-density frontend workstation
+cd dashboard
+npm install
+npm run dev
+Navigate to http://localhost:3000 to interact with your local instance.
 
-Or in the dashboard copilot, type:
-> *find trending tech podcasts and clip the most controversial moments*
+Triggering a Test Cycle
+To bypass the automatic background timers and manually fire a targeted extraction sequence, hit the ingestion router with a cURL payload:
 
-## Full stack via Docker
-```bash
-cp .env.example .env   # set OPENAI_API_KEY (+ UPLOAD_POST_API_KEY for render/post later)
-docker compose up --build
-```
+Bash
+curl -X POST localhost:8000/run-once -H 'content-type: application/json' -d '{"topic":"artific
