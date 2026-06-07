@@ -109,7 +109,9 @@ const copilotKit = new CopilotRuntime({
   actions: (): any[] => [
     {
       name: "startAutonomous",
-      description: "Start the unattended autonomous loop on a topic.",
+      description:
+        "Low-level start of the unattended autonomous loop on a topic (no confirmation). " +
+        "Prefer the client action 'startAutonomousLoop', which asks the user to confirm first.",
       parameters: [
         { name: "topic", type: "string", required: true },
         { name: "interval_seconds", type: "number", required: false },
@@ -119,7 +121,9 @@ const copilotKit = new CopilotRuntime({
     },
     {
       name: "stopAutonomous",
-      description: "Stop the autonomous loop.",
+      description:
+        "Stop the autonomous loop (low-level). The client action 'stopAutonomousLoop' is " +
+        "equivalent and also refreshes the dashboard.",
       parameters: [],
       handler: async () => laneA("/stop", "POST", {}),
     },
@@ -132,28 +136,56 @@ const copilotKit = new CopilotRuntime({
   ],
 });
 
-// The Next.js App Router helper mounts a SINGLE-ROUTE (POST-only, JSON-RPC) endpoint:
-// the chat/AG-UI client POSTs to /api/copilotkit and the handler dispatches by body.
+// Classic GraphQL chat uses the single-route POST handler below.
 const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
   runtime: copilotKit,
   serviceAdapter,
   endpoint: "/api/copilotkit",
 });
 
-// Why a catch-all ([[...all]]) instead of a flat route.ts:
-// the v1.59 @copilotkit/react-ui ALSO issues a REST-style GET /api/copilotkit/threads
-// for chat-history. The old POST-only route.ts didn't match that sub-path at all, so it
-// 404'd in the console. This optional catch-all matches the base AND every sub-path.
-//
-// This runtime is the classic CopilotRuntime (no CopilotKitIntelligence / thread store),
-// so the library's own list-threads handler would return 422 here — there's simply no
-// persisted history to serve. We answer the UI's history probe with a valid, empty
-// thread list (mirroring the runtime's { threads, nextCursor } shape) so it resolves
-// cleanly (200) instead of erroring. The chat itself is unaffected (it uses POST).
-export const POST = (req: Request) => handleRequest(req);
+// @copilotkit/react-core 1.59 mounts CopilotKitCore alongside the classic chat client.
+// On load it auto-detects transport by GET `${runtimeUrl}/info` (rest) or POST
+// `{ method: "info" }` (single-route). The classic endpoint only handled GraphQL POST,
+// so both probes 500'd → "Runtime info request failed with status 500" toast.
+// Answer the probe ourselves with a valid v2-shaped payload; mode "sse" matches the
+// classic runtime and keeps the GraphQL chat path working.
+const RUNTIME_VERSION = "1.59.5";
+function runtimeInfoResponse() {
+  return Response.json({
+    version: RUNTIME_VERSION,
+    agents: {},
+    mode: "sse",
+    intelligence: null,
+    audioFileTranscriptionEnabled: false,
+    a2uiEnabled: false,
+    openGenerativeUIEnabled: false,
+    telemetryDisabled: process.env.COPILOTKIT_TELEMETRY_DISABLED === "true",
+  });
+}
 
-export const GET = (req: Request) => {
+async function isInfoProbe(req: Request): Promise<boolean> {
   const url = new URL(req.url);
+  if (url.pathname.endsWith("/info")) return true;
+  if (req.method !== "POST") return false;
+  const ct = req.headers.get("content-type") || "";
+  if (!ct.includes("application/json")) return false;
+  try {
+    const body = await req.clone().json();
+    return body?.method === "info";
+  } catch {
+    return false;
+  }
+}
+
+export const POST = async (req: Request) => {
+  if (await isInfoProbe(req)) return runtimeInfoResponse();
+  return handleRequest(req);
+};
+
+export const GET = async (req: Request) => {
+  const url = new URL(req.url);
+  if (url.pathname.endsWith("/info")) return runtimeInfoResponse();
+  // Chat-history probe — classic runtime has no persisted thread store.
   if (url.pathname.endsWith("/threads")) {
     const agentId = url.searchParams.get("agentId");
     if (!agentId) {
@@ -161,8 +193,6 @@ export const GET = (req: Request) => {
     }
     return Response.json({ threads: [], nextCursor: null });
   }
-  // Other GET sub-routes (e.g. /info) fall through to the runtime, which returns a
-  // clean handled JSON response rather than a Next.js 404.
   return handleRequest(req);
 };
 

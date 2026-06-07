@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import threading
+from datetime import datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
@@ -26,8 +27,9 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
 
 _scheduler = BackgroundScheduler()
 _lock = threading.Lock()
-_state = {"running": False, "topic": "tech", "cycles": 0, "last": None}
 INTERVAL = int(os.getenv("ORCHESTRATOR_INTERVAL_SECONDS", "120"))
+_state = {"running": False, "topic": "tech", "cycles": 0, "last": None,
+          "interval_seconds": INTERVAL}
 
 
 def _cycle(topic: str | None = None) -> dict:
@@ -70,12 +72,18 @@ def run_once(req: DiscoverReq | None = None) -> dict:
 @app.post("/start")
 def start(req: StartReq) -> dict:
     _state["topic"] = req.topic
-    interval = req.interval_seconds or INTERVAL
+    interval = max(1, req.interval_seconds or INTERVAL)
     if _scheduler.get_job("loop"):
         _scheduler.remove_job("loop")
+    # next_run_time=now: APScheduler's interval trigger otherwise delays the FIRST cycle a
+    # whole `interval` out (120s default, up to 60 min with the UI presets) — so "Start Auto"
+    # looked broken because nothing happened on launch. Fire one cycle immediately, then every
+    # `interval`s. Cycles run on the scheduler's worker thread, so /start still returns instantly
+    # instead of blocking on a (potentially long) pipeline run.
     _scheduler.add_job(_cycle, "interval", seconds=interval, id="loop",
-                       max_instances=1, coalesce=True)
+                       max_instances=1, coalesce=True, next_run_time=datetime.now())
     _state["running"] = True
+    _state["interval_seconds"] = interval
     coord("A", "milestone", f"autonomous loop STARTED topic='{req.topic}' every {interval}s")
     return {"status": "started", "topic": req.topic, "interval_seconds": interval}
 
@@ -102,6 +110,7 @@ def status() -> dict:
         "topic": _state["topic"],
         "cycles": _state["cycles"],
         "last": _state["last"],
+        "interval_seconds": _state.get("interval_seconds", INTERVAL),
         "queue_pending": pending,
         "current_patterns": patterns.model_dump(),
     }

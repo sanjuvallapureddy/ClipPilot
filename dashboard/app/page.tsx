@@ -1,7 +1,8 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCopilotAction, useCopilotReadable } from "@copilotkit/react-core";
+import { useCopilotChatSuggestions } from "@copilotkit/react-ui";
 import {
   Search,
   Globe,
@@ -17,6 +18,7 @@ import {
   TrendingUp,
   GraduationCap,
   Check,
+  X,
 } from "lucide-react";
 import { getClipPredictions } from "@/lib/virality-mock";
 import LivePipeline from "@/components/LivePipeline";
@@ -70,6 +72,112 @@ async function callControl(action: string, payload: unknown = {}) {
 
 const HISTORY = 12;
 
+// Human-in-the-loop confirmation card for starting the autonomous loop. Rendered by the
+// `startAutonomousLoop` action via `renderAndWaitForResponse`: the copilot pauses here until
+// the user clicks Confirm (which runs the start) or Cancel. Module-scoped so its local
+// `submitting` state survives re-renders while the start request is in flight.
+function ConfirmStartLoop({
+  status,
+  args,
+  respond,
+  result,
+  defaultTopic,
+  onConfirm,
+}: {
+  status: string;
+  args: any;
+  respond?: (value: any) => void;
+  result?: { confirmed?: boolean; topic?: string };
+  defaultTopic: string;
+  onConfirm: (topic: string, intervalSeconds?: number) => Promise<{ ok: boolean }>;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const topic = (args?.topic || defaultTopic || "tech").trim();
+  const interval = args?.interval_seconds;
+
+  if (status === "complete") {
+    const confirmed = result?.confirmed;
+    return (
+      <Card className="my-1">
+        <div className="flex items-center gap-2">
+          {confirmed ? (
+            <Check size={14} className="text-emerald-400" />
+          ) : (
+            <X size={14} className="text-neutral-500" />
+          )}
+          <span className="text-xs font-medium uppercase tracking-wider text-neutral-400">
+            {confirmed ? "Autonomous loop started" : "Start cancelled"}
+          </span>
+        </div>
+        {confirmed && (
+          <div className="mt-2 font-mono text-[11px] text-neutral-500">
+            topic “{result?.topic ?? topic}” · watch cycles run in Live Pipeline →
+          </div>
+        )}
+      </Card>
+    );
+  }
+
+  if (status !== "executing") {
+    return (
+      <Card className="my-1">
+        <div className="flex items-center gap-2 text-xs text-neutral-500">
+          <Loader2 size={12} className="animate-spin" />
+          Preparing autonomous loop…
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="my-1">
+      <div className="flex items-center gap-2 pb-2">
+        <Power size={14} className="text-rose-400" />
+        <span className="text-xs font-medium uppercase tracking-wider text-neutral-400">
+          Start autonomous loop?
+        </span>
+      </div>
+      <p className="pb-3 text-xs leading-relaxed text-neutral-400">
+        ClipPilot will run unattended on{" "}
+        <span className="font-mono text-neutral-200">“{topic}”</span>
+        {interval ? (
+          <>
+            {" "}
+            every <span className="font-mono text-neutral-200">{interval}s</span>
+          </>
+        ) : null}
+        : discover → clip → post → learn → repeat.
+      </p>
+      <div className="flex items-center gap-2">
+        <MagneticButton
+          variant="primary"
+          disabled={submitting}
+          onClick={async () => {
+            setSubmitting(true);
+            try {
+              const r = await onConfirm(topic, interval);
+              respond?.({ confirmed: true, topic, interval_seconds: interval, ok: r.ok });
+            } catch {
+              respond?.({ confirmed: true, topic, ok: false });
+            }
+          }}
+        >
+          {submitting ? <Loader2 size={14} className="animate-spin" /> : <Power size={14} />}
+          {submitting ? "Starting…" : "Confirm & start"}
+        </MagneticButton>
+        <MagneticButton
+          variant="ghost"
+          disabled={submitting}
+          onClick={() => respond?.({ confirmed: false })}
+        >
+          <X size={14} />
+          Cancel
+        </MagneticButton>
+      </div>
+    </Card>
+  );
+}
+
 export default function Page() {
   const [status, setStatus] = useState<any>(null);
   const [online, setOnline] = useState<boolean | null>(null);
@@ -77,10 +185,33 @@ export default function Page() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [cyclesHist, setCyclesHist] = useState<number[]>([]);
   const [queueHist, setQueueHist] = useState<number[]>([]);
+  // Contract-backed context the copilot can read & answer questions from (queue/clips/analytics).
+  const [ctx, setCtx] = useState<{ queue: any[]; clips: any[]; analytics: any }>({
+    queue: [],
+    clips: [],
+    analytics: null,
+  });
   const contentRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { activeSection, setActiveSection } = useSectionNav();
   const bump = useCallback(() => setRefreshKey((k) => k + 1), []);
+  const running = status?.running;
+
+  // Slim, copilot-friendly virality snapshot (mock until OpenShorts emits multiple clips).
+  const viralityTop = useMemo(
+    () =>
+      getClipPredictions()
+        .slice(0, 5)
+        .map((c) => ({
+          clip_id: c.clip_id,
+          title: c.title,
+          topic: c.topic,
+          virality_score: c.virality_score,
+          predicted_retention_pct: c.predicted_retention_pct,
+          why: c.why_bullets.slice(0, 2),
+        })),
+    [],
+  );
 
   // Sidebar + command menu drive which section is visible. Analytics is a standalone
   // route; everything else is an in-page tab swap.
@@ -116,13 +247,137 @@ export default function Page() {
     return () => clearInterval(t);
   }, [loadStatus]);
 
-  useCopilotReadable({
-    description:
-      "ClipPilot orchestrator status, queue depth, and current winning patterns",
-    value: status,
-  });
+  // Pull the contract-backed context the copilot answers from. Kept slim so readable payloads
+  // stay small; refreshed on a slow timer and after every action (bump() advances refreshKey).
+  const loadContext = useCallback(async () => {
+    const [q, c, a] = await Promise.all([
+      fetch("/api/queue").then((r) => r.json()).catch(() => ({ items: [] })),
+      fetch("/api/clips").then((r) => r.json()).catch(() => ({ clips: [] })),
+      fetch("/api/analytics").then((r) => r.json()).catch(() => null),
+    ]);
+    setCtx({
+      queue: (q?.items || []).slice(0, 8).map((it: any) => ({
+        title: it.title,
+        podcast: it.podcast,
+        topic: it.topic,
+        trend_score: it.trend_score,
+        source: it.source,
+      })),
+      clips: (c?.clips || []).slice(0, 8).map((cl: any) => ({
+        clip_id: cl.clip_id,
+        hook: cl.hook,
+        quote: cl.quote,
+        topic: cl.topic,
+        length_seconds: cl.length_seconds,
+        render_status: cl.render_status,
+        post_status: cl.post_status,
+        views: cl.views,
+        engagement_score: cl.engagement_score,
+      })),
+      analytics: a
+        ? { totals: a.totals, topTopics: (a.topicStats || []).slice(0, 5), patterns: a.patterns }
+        : null,
+    });
+  }, []);
 
-  const running = status?.running;
+  useEffect(() => {
+    loadContext();
+    const t = setInterval(loadContext, 8000);
+    return () => clearInterval(t);
+  }, [loadContext]);
+
+  useEffect(() => {
+    loadContext();
+  }, [refreshKey, loadContext]);
+
+  // --- Copilot context (readables) ---
+  useCopilotReadable(
+    {
+      description:
+        "ClipPilot live state: whether Lane A (the discovery orchestrator) is reachable, " +
+        "whether the autonomous loop is running, the active topic, total cycles run, and the " +
+        "pending queue depth.",
+      value: {
+        orchestrator_online: online,
+        autonomous_loop_running: !!running,
+        current_topic: status?.topic ?? null,
+        cycles_run: Number(status?.cycles ?? 0),
+        queue_pending: Number(status?.queue_pending ?? 0),
+      },
+    },
+    [online, running, status?.topic, status?.cycles, status?.queue_pending],
+  );
+
+  useCopilotReadable(
+    {
+      description:
+        "Raw orchestrator status payload from Lane A (/status), including winning patterns when " +
+        "Lane B has learned any.",
+      value: status,
+    },
+    [status],
+  );
+
+  useCopilotReadable(
+    {
+      description:
+        "Discovered queue — top trending podcast candidates waiting to be clipped, ranked by " +
+        "trend score (higher = stronger viral signal).",
+      value: ctx.queue,
+    },
+    [ctx.queue],
+  );
+
+  useCopilotReadable(
+    {
+      description:
+        "Recently detected viral-moment clips: hook, quote, topic, length, render/post status, " +
+        "predicted engagement, and real view counts (0 until actually posted).",
+      value: ctx.clips,
+    },
+    [ctx.clips],
+  );
+
+  useCopilotReadable(
+    {
+      description:
+        "Performance analytics and the winning patterns learned by Lane B (top topics, ideal " +
+        "length, caption/hook style). Real metrics appear once clips are posted.",
+      value: ctx.analytics,
+    },
+    [ctx.analytics],
+  );
+
+  useCopilotReadable(
+    {
+      description:
+        "Predicted virality ranking for candidate clips (0–100 score, retention %, and the top " +
+        "reasons WHY each would perform). Mock predictions until OpenShorts multi-clip output is wired.",
+      value: viralityTop,
+    },
+    [viralityTop],
+  );
+
+  // --- Contextual chat suggestions (adapt to the live state above) ---
+  useCopilotChatSuggestions(
+    {
+      instructions:
+        "Suggest 3–4 short, action-oriented things to do next in ClipPilot (mission control for " +
+        "an autonomous podcast→shorts agent). Tailor them to the current state:\n" +
+        `- orchestrator online: ${online}\n` +
+        `- autonomous loop running: ${!!running}\n` +
+        `- current topic: ${status?.topic ?? "none set"}\n` +
+        `- queue pending: ${Number(status?.queue_pending ?? 0)}\n` +
+        `- clips detected: ${ctx.clips.length}\n` +
+        "If the loop is running, suggest stopping it or reviewing analytics/winning patterns. If " +
+        "it's stopped, suggest starting the autonomous loop or running one cycle. If no topic is " +
+        "set, suggest discovering a trending topic (e.g. AI, tech, business). If clips exist, " +
+        "suggest rating their virality. Keep each suggestion under ~8 words.",
+      minSuggestions: 3,
+      maxSuggestions: 4,
+    },
+    [online, running, status?.topic, status?.queue_pending, ctx.clips.length],
+  );
 
   // Preflight: every control action proxies to Lane A (the discovery orchestrator on
   // :8000). If it's offline, fail fast with an actionable message instead of a vague error.
@@ -523,6 +778,134 @@ export default function Page() {
       </Card>
     ),
   });
+
+  // --- Loop controls the copilot can invoke from chat ---
+  useCopilotAction(
+    {
+      name: "startAutonomousLoop",
+      description:
+        "Start ClipPilot's unattended autonomous loop (discover → clip → post → learn → repeat) " +
+        "on a topic. Renders an in-chat confirmation; the loop only starts after the user clicks " +
+        "Confirm. Use this to start the loop rather than any lower-level start action.",
+      parameters: [
+        {
+          name: "topic",
+          type: "string",
+          description: "topic to run on, e.g. 'AI' or 'business'",
+          required: false,
+        },
+        {
+          name: "interval_seconds",
+          type: "number",
+          description: "seconds between cycles (optional)",
+          required: false,
+        },
+      ],
+      renderAndWaitForResponse: ({ status: s, args, respond, result }) => (
+        <ConfirmStartLoop
+          status={s}
+          args={args}
+          respond={respond}
+          result={result}
+          defaultTopic={status?.topic ?? "tech"}
+          onConfirm={async (topic, intervalSeconds) => {
+            if (!ensureOrchestrator()) return { ok: false };
+            const payload = intervalSeconds
+              ? { topic, interval_seconds: intervalSeconds }
+              : { topic };
+            const r = await callControl("start", payload);
+            if (r.ok) toast("Autonomous loop started", "success");
+            else toast("Could not reach the orchestrator", "error");
+            loadStatus();
+            bump();
+            return { ok: r.ok };
+          }}
+        />
+      ),
+    },
+    [status?.topic, ensureOrchestrator, loadStatus, bump],
+  );
+
+  useCopilotAction(
+    {
+      name: "stopAutonomousLoop",
+      description: "Stop ClipPilot's autonomous loop. Returns the updated orchestrator status.",
+      parameters: [],
+      handler: async () => {
+        if (!ensureOrchestrator()) return { ok: false };
+        const r = await callControl("stop", {});
+        if (r.ok) toast("Autonomous loop stopped", "success");
+        else toast("Could not reach the orchestrator", "error");
+        loadStatus();
+        bump();
+        return r.data;
+      },
+      render: ({ status: s }) => (
+        <Card className="my-1">
+          <div className="flex items-center gap-2">
+            {s === "complete" ? (
+              <Square size={14} className="text-rose-400" />
+            ) : (
+              <Loader2 size={12} className="animate-spin text-neutral-500" />
+            )}
+            <span className="text-xs font-medium uppercase tracking-wider text-neutral-400">
+              {s === "complete" ? "Autonomous loop stopped" : "Stopping loop…"}
+            </span>
+          </div>
+        </Card>
+      ),
+    },
+    [ensureOrchestrator, loadStatus, bump],
+  );
+
+  useCopilotAction(
+    {
+      name: "setTopic",
+      description:
+        "Change ClipPilot's active working topic. If the autonomous loop is running it re-points " +
+        "the loop to the new topic; otherwise it seeds discovery for the new topic.",
+      parameters: [
+        {
+          name: "topic",
+          type: "string",
+          description: "the new topic, e.g. 'AI podcasts'",
+          required: true,
+        },
+      ],
+      handler: async ({ topic }) => {
+        if (!ensureOrchestrator()) return { ok: false };
+        const action = running ? "start" : "discover";
+        const r = await callControl(action, { topic });
+        if (r.ok) toast(`Topic set to “${topic}”`, "success");
+        else toast("Could not reach the orchestrator", "error");
+        loadStatus();
+        bump();
+        return { topic, applied_via: action, ok: r.ok, ...r.data };
+      },
+      render: ({ status: s, args, result }) => (
+        <Card className="my-1">
+          <div className="flex items-center gap-2 pb-2">
+            <Hash size={14} className="text-amber-400" />
+            <span className="text-xs font-medium uppercase tracking-wider text-neutral-400">
+              {s === "complete" ? "Topic updated" : "Updating topic"}
+            </span>
+          </div>
+          {s === "complete" ? (
+            <div className="font-mono text-[11px] text-neutral-500">
+              now tracking “{result?.topic ?? args?.topic}”
+              {result?.applied_via === "start" ? " · loop re-pointed" : " · discovery seeded"}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-xs text-neutral-500">
+              <Loader2 size={12} className="animate-spin" />
+              switching to “{args?.topic}”…
+            </div>
+          )}
+        </Card>
+      ),
+    },
+    [running, ensureOrchestrator, loadStatus, bump],
+  );
 
   const activeLabel = NAV_ITEMS.find((n) => n.id === activeSection)?.label ?? "Overview";
 
