@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import {
   Play,
@@ -19,20 +20,23 @@ export function openCommandMenu() {
   window.dispatchEvent(new Event(OPEN_COMMAND_EVENT));
 }
 
+function scrollToSection(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 export default function CommandMenu({
   running,
   onRunOnce,
   onDiscover,
   onToggleAuto,
-  onNavigate,
 }: {
   running: boolean;
   onRunOnce: () => void;
   onDiscover: () => void;
   onToggleAuto: () => void;
-  onNavigate: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -110,19 +114,19 @@ export default function CommandMenu({
           heading="Navigate"
           className="mt-2 px-1 py-1 text-[10px] font-medium uppercase tracking-widest text-neutral-600 [&_[cmdk-group-items]]:mt-1 [&_[cmdk-group-items]]:space-y-0.5"
         >
-          <Command.Item className={itemCls} onSelect={() => run(() => onNavigate("live-pipeline"))}>
+          <Command.Item className={itemCls} onSelect={() => run(() => scrollToSection("live-pipeline"))}>
             <Activity size={15} className="text-neutral-500" />
             Live Pipeline
           </Command.Item>
-          <Command.Item className={itemCls} onSelect={() => run(() => onNavigate("viral-moments"))}>
+          <Command.Item className={itemCls} onSelect={() => run(() => scrollToSection("viral-moments"))}>
             <Flame size={15} className="text-neutral-500" />
             Detected Viral Moments
           </Command.Item>
-          <Command.Item className={itemCls} onSelect={() => run(() => onNavigate("discovered-queue"))}>
+          <Command.Item className={itemCls} onSelect={() => run(() => scrollToSection("discovered-queue"))}>
             <ListVideo size={15} className="text-neutral-500" />
             Discovered Queue
           </Command.Item>
-          <Command.Item className={itemCls} onSelect={() => run(() => onNavigate("analytics"))}>
+          <Command.Item className={itemCls} onSelect={() => run(() => router.push("/analytics"))}>
             <BarChart3 size={15} className="text-neutral-500" />
             Analytics
           </Command.Item>

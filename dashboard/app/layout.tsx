@@ -7,6 +7,7 @@ import { CopilotSidebar } from "@copilotkit/react-ui";
 import { Toaster } from "@/components/toast";
 import { TooltipProvider } from "@/components/ui";
 import ChatInput from "@/components/ChatInput";
+import AppChrome from "@/components/AppChrome";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -30,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   "Try: “find trending tech podcasts and clip the most controversial moments”",
               }}
             >
-              {children}
+              <AppChrome>{children}</AppChrome>
             </CopilotSidebar>
           </CopilotKit>
           <Toaster />

@@ -92,6 +92,7 @@ async def _run(engine_job_id: str, req: ProcessRequest) -> None:
         coord("C", "error", f"{engine_job_id} failed: {e}")
 
 
+@observability.op("engine.process")
 async def _run_real(engine_job_id: str, req: ProcessRequest) -> None:
     """Hand the YouTube link straight to OpenShorts. OpenShorts does EVERYTHING — download,
     transcription, viral-moment detection, cutting, 9:16 reframe, captions. ClipPilot does

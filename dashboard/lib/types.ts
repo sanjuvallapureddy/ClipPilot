@@ -55,6 +55,8 @@ export interface ClipResult {
   likes: number;
   shares: number;
   engagement_score: number;
+  created_at: number;
+  updated_at: number;
 }
 
 export interface Patterns {
