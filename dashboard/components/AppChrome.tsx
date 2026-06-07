@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/Sidebar";
+import { SectionNavProvider } from "@/components/section-nav";
 
 /**
  * Persistent app shell. Rendered once in the root layout so the sidebar stays mounted
@@ -29,9 +30,11 @@ export default function AppChrome({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-black">
-      <Sidebar online={online} />
-      {children}
-    </div>
+    <SectionNavProvider>
+      <div className="flex min-h-screen bg-black">
+        <Sidebar online={online} />
+        {children}
+      </div>
+    </SectionNavProvider>
   );
 }

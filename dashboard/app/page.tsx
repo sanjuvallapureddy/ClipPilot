@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useCopilotAction, useCopilotReadable } from "@copilotkit/react-core";
 import {
   Search,
@@ -29,6 +30,8 @@ import MockEditingStudio from "@/components/MockEditingStudio";
 import ViralityPredictor from "@/components/ViralityPredictor";
 import Aurora from "@/components/Aurora";
 import ScrollProgress from "@/components/ScrollProgress";
+import { NAV_ITEMS } from "@/components/Sidebar";
+import { useSectionNav } from "@/components/section-nav";
 import { motion } from "framer-motion";
 import {
   MagneticButton,
@@ -72,7 +75,22 @@ export default function Page() {
   const [cyclesHist, setCyclesHist] = useState<number[]>([]);
   const [queueHist, setQueueHist] = useState<number[]>([]);
   const contentRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const { activeSection, setActiveSection } = useSectionNav();
   const bump = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  // Sidebar + command menu drive which section is visible. Analytics is a standalone
+  // route; everything else is an in-page tab swap.
+  const navigate = useCallback(
+    (id: string) => {
+      if (id === "analytics") {
+        router.push("/analytics");
+        return;
+      }
+      setActiveSection(id);
+    },
+    [router, setActiveSection],
+  );
 
   const loadStatus = useCallback(async () => {
     try {
@@ -458,6 +476,8 @@ export default function Page() {
     ),
   });
 
+  const activeLabel = NAV_ITEMS.find((n) => n.id === activeSection)?.label ?? "Overview";
+
   return (
     <>
       <ScrollProgress containerRef={contentRef} />
@@ -466,6 +486,7 @@ export default function Page() {
         onRunOnce={doRunOnce}
         onDiscover={doDiscover}
         onToggleAuto={doToggleAuto}
+        onNavigate={navigate}
       />
 
       <motion.div
@@ -479,7 +500,7 @@ export default function Page() {
           <Aurora />
           <div className="flex min-w-0 flex-col leading-tight">
             <h1 className="text-sm font-semibold tracking-tight text-neutral-100">
-              Dashboard
+              {activeLabel}
             </h1>
             <span className="truncate text-[11px] text-neutral-500">
               autonomous podcast → shorts factory
@@ -526,92 +547,108 @@ export default function Page() {
         </header>
 
         <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 px-6 py-6">
-          <section id="overview" className="grid scroll-mt-20 grid-cols-2 gap-3 lg:grid-cols-4">
-          <Reveal delay={0}>
-            <GlowMetricCard
-              title="Status"
-              variant="red"
-              dot
-              pulse={!!running}
-              value={
-                <span className={running ? "text-neutral-100" : "text-rose-400/90"}>
-                  {running ? "ON" : "OFF"}
-                </span>
-              }
-              description="autonomous loop"
-            />
-          </Reveal>
-          <Reveal delay={0.06}>
-            <GlowMetricCard
-              title="Cycles Run"
-              variant="blue"
-              icon={Repeat}
-              value={<OdometerNumber value={Number(status?.cycles ?? 0)} />}
-              description="total"
-              sparkline={cyclesHist}
-            />
-          </Reveal>
-          <Reveal delay={0.12}>
-            <GlowMetricCard
-              title="Queue Pending"
-              variant="cyan"
-              icon={ListVideo}
-              value={<OdometerNumber value={Number(status?.queue_pending ?? 0)} />}
-              description="candidates"
-              sparkline={queueHist}
-            />
-          </Reveal>
-          <Reveal delay={0.18}>
-            <GlowMetricCard
-              title="Current Topic"
-              variant="amber"
-              icon={Hash}
-              value={
-                <span
-                  className={`truncate text-base ${
-                    status?.topic ? "text-amber-400/90" : "text-neutral-100"
-                  }`}
-                >
-                  {status?.topic ?? "—"}
-                </span>
-              }
-            />
-          </Reveal>
-        </section>
+          {activeSection === "overview" && (
+            <>
+              <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <Reveal delay={0}>
+                  <GlowMetricCard
+                    title="Status"
+                    variant="red"
+                    dot
+                    pulse={!!running}
+                    value={
+                      <span className={running ? "text-neutral-100" : "text-rose-400/90"}>
+                        {running ? "ON" : "OFF"}
+                      </span>
+                    }
+                    description="autonomous loop"
+                  />
+                </Reveal>
+                <Reveal delay={0.06}>
+                  <GlowMetricCard
+                    title="Cycles Run"
+                    variant="blue"
+                    icon={Repeat}
+                    value={<OdometerNumber value={Number(status?.cycles ?? 0)} />}
+                    description="total"
+                    sparkline={cyclesHist}
+                  />
+                </Reveal>
+                <Reveal delay={0.12}>
+                  <GlowMetricCard
+                    title="Queue Pending"
+                    variant="cyan"
+                    icon={ListVideo}
+                    value={<OdometerNumber value={Number(status?.queue_pending ?? 0)} />}
+                    description="candidates"
+                    sparkline={queueHist}
+                  />
+                </Reveal>
+                <Reveal delay={0.18}>
+                  <GlowMetricCard
+                    title="Current Topic"
+                    variant="amber"
+                    icon={Hash}
+                    value={
+                      <span
+                        className={`truncate text-base ${
+                          status?.topic ? "text-amber-400/90" : "text-neutral-100"
+                        }`}
+                      >
+                        {status?.topic ?? "—"}
+                      </span>
+                    }
+                  />
+                </Reveal>
+              </section>
+              <Reveal>
+                <LivePipeline />
+              </Reveal>
+            </>
+          )}
 
-        <Reveal id="live-pipeline" className="scroll-mt-20">
-          <LivePipeline />
-        </Reveal>
+          {activeSection === "live-pipeline" && (
+            <Reveal>
+              <LivePipeline />
+            </Reveal>
+          )}
 
-        <Reveal id="editing-studio" className="scroll-mt-20">
-          <MockEditingStudio />
-        </Reveal>
+          {activeSection === "editing-studio" && (
+            <Reveal>
+              <MockEditingStudio />
+            </Reveal>
+          )}
 
-        <Reveal id="virality-predictor" className="scroll-mt-20">
-          <ViralityPredictor />
-        </Reveal>
+          {activeSection === "virality-predictor" && (
+            <Reveal>
+              <ViralityPredictor />
+            </Reveal>
+          )}
 
-        <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="flex flex-col gap-4">
-            <Reveal id="viral-moments" className="scroll-mt-20">
-              <ClipsGallery refreshKey={refreshKey} />
-            </Reveal>
-            <Reveal id="clip-history" className="scroll-mt-20">
-              <RecentClipHistory refreshKey={refreshKey} />
-            </Reveal>
-            <Reveal id="analytics" className="scroll-mt-20">
-              <Analytics refreshKey={refreshKey} />
-            </Reveal>
-          </div>
-          <div className="flex flex-col gap-4">
-            <Reveal className="scroll-mt-20">
-              <ManualUpload />
-            </Reveal>
-            <Reveal id="discovered-queue" className="scroll-mt-20">
-              <DiscoveredQueue refreshKey={refreshKey} />
-            </Reveal>
-          </div>
-        </section>
+          {activeSection === "viral-moments" && (
+            <>
+              <Reveal>
+                <ClipsGallery refreshKey={refreshKey} />
+              </Reveal>
+              <Reveal>
+                <RecentClipHistory refreshKey={refreshKey} />
+              </Reveal>
+              <Reveal>
+                <Analytics refreshKey={refreshKey} />
+              </Reveal>
+            </>
+          )}
+
+          {activeSection === "discovered-queue" && (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+              <Reveal>
+                <ManualUpload />
+              </Reveal>
+              <Reveal>
+                <DiscoveredQueue refreshKey={refreshKey} />
+              </Reveal>
+            </div>
+          )}
         </main>
 
         <ActivityTicker />

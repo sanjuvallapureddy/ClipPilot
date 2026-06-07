@@ -5,6 +5,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Clapperboard,
   LayoutDashboard,
+  Activity,
+  Wand2,
+  TrendingUp,
+  Flame,
+  Compass,
   BarChart3,
   Settings,
   PanelLeftClose,
@@ -14,39 +19,62 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Tooltip } from "@/components/ui";
+import { useSectionNav } from "@/components/section-nav";
 
 export interface NavItem {
   id: string;
   label: string;
   icon: LucideIcon;
   accent: string;
-  route: string;
+  /** When set, the item navigates to this route. Otherwise it switches the active tab/section. */
+  route?: string;
 }
 
-// Two top-level destinations only: the whole mission-control dashboard lives under one
-// "Dashboard" tab; analytics is its own page.
+// The mission-control dashboard is a tabbed surface: each section item swaps which view
+// renders on the home page (activeSection state machine). Analytics is its own route.
 export const NAV_ITEMS: NavItem[] = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, accent: "text-neutral-200", route: "/" },
+  { id: "overview", label: "Overview", icon: LayoutDashboard, accent: "text-neutral-200" },
+  { id: "live-pipeline", label: "Pipeline", icon: Activity, accent: "text-violet-400" },
+  { id: "editing-studio", label: "Editing", icon: Wand2, accent: "text-fuchsia-400" },
+  { id: "virality-predictor", label: "Virality", icon: TrendingUp, accent: "text-rose-400" },
+  { id: "viral-moments", label: "Clips", icon: Flame, accent: "text-amber-400" },
+  { id: "discovered-queue", label: "Discovery", icon: Compass, accent: "text-cyan-400" },
   { id: "analytics", label: "Analytics", icon: BarChart3, accent: "text-blue-400", route: "/analytics" },
 ];
+
+/** Section-switch items only (everything that isn't a standalone route). */
+export const SECTION_ITEMS = NAV_ITEMS.filter((n) => !n.route);
 
 export default function Sidebar({ online }: { online: boolean | null }) {
   const [collapsed, setCollapsed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const { activeSection, setActiveSection } = useSectionNav();
 
   // Warm both routes on mount so switching tabs is instant (no first-click compile/fetch wait).
   useEffect(() => {
-    NAV_ITEMS.forEach((i) => router.prefetch(i.route));
+    router.prefetch("/");
+    router.prefetch("/analytics");
   }, [router]);
 
   const width = collapsed ? "w-16" : "w-56";
 
+  const handleNavigate = (item: NavItem) => {
+    if (item.route) {
+      router.push(item.route);
+      return;
+    }
+    // Section item: flip the active tab. If we're away from home (e.g. on /analytics),
+    // route home first — the section context persists across the navigation.
+    setActiveSection(item.id);
+    if (pathname !== "/") router.push("/");
+  };
+
   const isItemActive = (item: NavItem) =>
-    item.route === "/"
-      ? pathname === "/"
-      : pathname === item.route || pathname.startsWith(`${item.route}/`);
+    item.route
+      ? pathname === item.route || pathname.startsWith(`${item.route}/`)
+      : pathname === "/" && activeSection === item.id;
 
   return (
     <>
@@ -55,9 +83,12 @@ export default function Sidebar({ online }: { online: boolean | null }) {
         transition={{ type: "spring", stiffness: 300, damping: 32 }}
         className={`sticky top-0 z-40 flex h-screen ${width} shrink-0 flex-col border-r border-neutral-900 bg-black/60 backdrop-blur-md`}
       >
-        {/* Brand — click returns to the dashboard */}
+        {/* Brand — click returns to the dashboard overview */}
         <button
-          onClick={() => router.push("/")}
+          onClick={() => {
+            setActiveSection("overview");
+            router.push("/");
+          }}
           className="group flex h-14 items-center gap-2.5 border-b border-neutral-900 px-4 text-left transition-colors hover:bg-neutral-950/60"
         >
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-neutral-800 bg-neutral-950 transition-colors group-hover:border-neutral-700">
@@ -78,8 +109,8 @@ export default function Sidebar({ online }: { online: boolean | null }) {
             const button = (
               <button
                 key={item.id}
-                onClick={() => router.push(item.route)}
-                onMouseEnter={() => router.prefetch(item.route)}
+                onClick={() => handleNavigate(item)}
+                onMouseEnter={() => item.route && router.prefetch(item.route)}
                 className={`group relative flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm transition-colors ${
                   isActive
                     ? "bg-neutral-900/70 text-neutral-100"

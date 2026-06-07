@@ -65,11 +65,38 @@ const copilotKit = new CopilotRuntime({
   ],
 });
 
-export const POST = async (req: Request) => {
-  const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
-    runtime: copilotKit,
-    serviceAdapter,
-    endpoint: "/api/copilotkit",
-  });
+// The Next.js App Router helper mounts a SINGLE-ROUTE (POST-only, JSON-RPC) endpoint:
+// the chat/AG-UI client POSTs to /api/copilotkit and the handler dispatches by body.
+const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
+  runtime: copilotKit,
+  serviceAdapter,
+  endpoint: "/api/copilotkit",
+});
+
+// Why a catch-all ([[...all]]) instead of a flat route.ts:
+// the v1.59 @copilotkit/react-ui ALSO issues a REST-style GET /api/copilotkit/threads
+// for chat-history. The old POST-only route.ts didn't match that sub-path at all, so it
+// 404'd in the console. This optional catch-all matches the base AND every sub-path.
+//
+// This runtime is the classic CopilotRuntime (no CopilotKitIntelligence / thread store),
+// so the library's own list-threads handler would return 422 here — there's simply no
+// persisted history to serve. We answer the UI's history probe with a valid, empty
+// thread list (mirroring the runtime's { threads, nextCursor } shape) so it resolves
+// cleanly (200) instead of erroring. The chat itself is unaffected (it uses POST).
+export const POST = (req: Request) => handleRequest(req);
+
+export const GET = (req: Request) => {
+  const url = new URL(req.url);
+  if (url.pathname.endsWith("/threads")) {
+    const agentId = url.searchParams.get("agentId");
+    if (!agentId) {
+      return Response.json({ error: "Valid agentId query param is required" }, { status: 400 });
+    }
+    return Response.json({ threads: [], nextCursor: null });
+  }
+  // Other GET sub-routes (e.g. /info) fall through to the runtime, which returns a
+  // clean handled JSON response rather than a Next.js 404.
   return handleRequest(req);
 };
+
+export const OPTIONS = (req: Request) => handleRequest(req);
