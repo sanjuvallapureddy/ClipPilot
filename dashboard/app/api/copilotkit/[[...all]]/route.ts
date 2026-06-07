@@ -3,8 +3,8 @@
 import {
   CopilotRuntime,
   OpenAIAdapter,
-  copilotRuntimeNextJSAppRouterEndpoint,
 } from "@copilotkit/runtime";
+import { createCopilotRuntimeHandler } from "@copilotkit/runtime/v2";
 import { wrapLanguageModel, type LanguageModelMiddleware } from "ai";
 import OpenAI from "openai";
 import { DISCOVERY_API_URL } from "@/lib/redis";
@@ -141,64 +141,17 @@ const copilotKit = new CopilotRuntime({
   ],
 });
 
-// Classic GraphQL chat uses the single-route POST handler below.
-const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
-  runtime: copilotKit,
-  serviceAdapter,
-  endpoint: "/api/copilotkit",
+// Multi-route handler: serves GET /info (registers the default BuiltInAgent for
+// CopilotKitCore's useAgent hook), POST /agent/:id/run, /threads, etc. The old
+// single-route stub returned agents:{} which caused "Agent 'default' not found".
+copilotKit.handleServiceAdapter(serviceAdapter);
+
+const handler = createCopilotRuntimeHandler({
+  runtime: copilotKit.instance,
+  basePath: "/api/copilotkit",
+  cors: true,
 });
 
-// @copilotkit/react-core 1.59 mounts CopilotKitCore alongside the classic chat client.
-// On load it auto-detects transport by GET `${runtimeUrl}/info` (rest) or POST
-// `{ method: "info" }` (single-route). The classic endpoint only handled GraphQL POST,
-// so both probes 500'd → "Runtime info request failed with status 500" toast.
-// Answer the probe ourselves with a valid v2-shaped payload; mode "sse" matches the
-// classic runtime and keeps the GraphQL chat path working.
-const RUNTIME_VERSION = "1.59.5";
-function runtimeInfoResponse() {
-  return Response.json({
-    version: RUNTIME_VERSION,
-    agents: {},
-    mode: "sse",
-    intelligence: null,
-    audioFileTranscriptionEnabled: false,
-    a2uiEnabled: false,
-    openGenerativeUIEnabled: false,
-    telemetryDisabled: process.env.COPILOTKIT_TELEMETRY_DISABLED === "true",
-  });
-}
-
-async function isInfoProbe(req: Request): Promise<boolean> {
-  const url = new URL(req.url);
-  if (url.pathname.endsWith("/info")) return true;
-  if (req.method !== "POST") return false;
-  const ct = req.headers.get("content-type") || "";
-  if (!ct.includes("application/json")) return false;
-  try {
-    const body = await req.clone().json();
-    return body?.method === "info";
-  } catch {
-    return false;
-  }
-}
-
-export const POST = async (req: Request) => {
-  if (await isInfoProbe(req)) return runtimeInfoResponse();
-  return handleRequest(req);
-};
-
-export const GET = async (req: Request) => {
-  const url = new URL(req.url);
-  if (url.pathname.endsWith("/info")) return runtimeInfoResponse();
-  // Chat-history probe — classic runtime has no persisted thread store.
-  if (url.pathname.endsWith("/threads")) {
-    const agentId = url.searchParams.get("agentId");
-    if (!agentId) {
-      return Response.json({ error: "Valid agentId query param is required" }, { status: 400 });
-    }
-    return Response.json({ threads: [], nextCursor: null });
-  }
-  return handleRequest(req);
-};
-
-export const OPTIONS = (req: Request) => handleRequest(req);
+export const GET = handler;
+export const POST = handler;
+export const OPTIONS = handler;

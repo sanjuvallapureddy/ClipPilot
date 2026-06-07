@@ -10,7 +10,7 @@ import {
   Clock,
   type LucideIcon,
 } from "lucide-react";
-import { motion, useMotionValue, useSpring, animate } from "framer-motion";
+import { motion, animate, useMotionValue, useSpring } from "framer-motion";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import type { Stage } from "@/lib/types";
 
@@ -109,57 +109,6 @@ export const Button = forwardRef<
     >
       {children}
     </button>
-  );
-});
-
-/**
- * Magnetic button: subtly pulls toward the cursor and springs back on leave,
- * with a tactile press (scale 0.96). Used for primary toolbar actions.
- */
-export const MagneticButton = forwardRef<
-  HTMLButtonElement,
-  {
-    variant?: ButtonVariant;
-    className?: string;
-    strength?: number;
-    children: ReactNode;
-  } & React.ButtonHTMLAttributes<HTMLButtonElement>
->(function MagneticButton(
-  { variant = "primary", className = "", strength = 0.35, children, ...props },
-  ref,
-) {
-  const x = useSpring(0, { stiffness: 350, damping: 18 });
-  const y = useSpring(0, { stiffness: 350, damping: 18 });
-  const localRef = useRef<HTMLButtonElement | null>(null);
-
-  const onMove = (e: React.MouseEvent<HTMLButtonElement>) => {
-    const el = localRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    x.set((e.clientX - (r.left + r.width / 2)) * strength);
-    y.set((e.clientY - (r.top + r.height / 2)) * strength);
-  };
-  const reset = () => {
-    x.set(0);
-    y.set(0);
-  };
-
-  return (
-    <motion.button
-      ref={(node) => {
-        localRef.current = node;
-        if (typeof ref === "function") ref(node);
-        else if (ref) (ref as React.MutableRefObject<HTMLButtonElement | null>).current = node;
-      }}
-      style={{ x, y }}
-      onMouseMove={onMove}
-      onMouseLeave={reset}
-      whileTap={{ scale: 0.96 }}
-      className={`${buttonBase} ${buttonVariants[variant]} ${className}`}
-      {...(props as any)}
-    >
-      {children}
-    </motion.button>
   );
 });
 
