@@ -1,0 +1,8 @@
+# Optional: Weights & Biases Weave tracing for the engine (Lane C).
+# Kept separate from the core requirements so the base install stays lightweight and
+# W&B remains opt-in. Enable with:
+#   pip install -r requirements-weave.txt
+#   wandb login                 # or set WANDB_API_KEY
+#   set WEAVE_PROJECT=clippilot
+#   python -m engine.weave_smoke   # verify a trace lands in W&B
+weave>=0.51.0

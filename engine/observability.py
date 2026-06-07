@@ -27,12 +27,21 @@ _initialized = False
 _weave: Any = None
 
 
+def _has_wandb_auth() -> bool:
+    """W&B auth via env var or a stored credentials file (`wandb login`).
+
+    `wandb login` writes `~/.netrc` on macOS/Linux and `~/_netrc` on Windows, so we
+    check both.
+    """
+    if os.getenv("WANDB_API_KEY"):
+        return True
+    home = os.path.expanduser("~")
+    return any(os.path.exists(os.path.join(home, n)) for n in (".netrc", "_netrc"))
+
+
 def enabled() -> bool:
     """True when a Weave project and W&B auth are both configured."""
-    has_auth = bool(os.getenv("WANDB_API_KEY") or os.path.exists(
-        os.path.expanduser("~/.netrc")
-    ))
-    return bool(os.getenv("WEAVE_PROJECT")) and has_auth
+    return bool(os.getenv("WEAVE_PROJECT")) and _has_wandb_auth()
 
 
 def init() -> bool:
