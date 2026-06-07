@@ -1,4 +1,5 @@
-ClipPilot 🎬🤖
+**ClipPilot** 🎬🤖
+
 The Autonomous Multi-Agent Short-Form Video Factory
 ClipPilot is a production-grade, zero-human-in-the-loop autonomous pipeline that orchestrates the entire lifecycle of viral content acquisition, refinement, generation, distribution, and performance optimization.
 
