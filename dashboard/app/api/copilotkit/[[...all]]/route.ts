@@ -74,7 +74,16 @@ const systemPromptMiddleware: LanguageModelMiddleware = {
 // AND strong at tool-calling + instruction following. COPILOT_MODEL can override.
 const serviceAdapter = new OpenAIAdapter({
   openai,
+<<<<<<< Updated upstream
   model: process.env.COPILOT_MODEL || "gpt-4o",
+=======
+  model: process.env.COPILOT_MODEL || "gpt-4o-mini",
+  // Force sequential tool calls. Parallel tool calls race the AG-UI run lifecycle and
+  // throw "Cannot send 'RUN_FINISHED' while tool calls are still active", which the browser
+  // surfaces as agent_connect_failed / "Failed to fetch". Sequential calls also let each
+  // action's state change (e.g. start loop -> status) be visible to the next one.
+  disableParallelToolCalls: true,
+>>>>>>> Stashed changes
 });
 
 // CopilotKit's v2 BuiltInAgent calls adapter.getLanguageModel() to build the prompt, so we
